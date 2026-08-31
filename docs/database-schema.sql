@@ -38,7 +38,7 @@ CREATE TABLE camps (
   start_date     DATE NOT NULL,
   end_date       DATE NOT NULL,
   city           VARCHAR(100),
-  min_age        SMALLINT,
+  age            SMALLINT,
   capacity       INTEGER NOT NULL DEFAULT 0,
   status         camp_status NOT NULL DEFAULT 'draft',
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
