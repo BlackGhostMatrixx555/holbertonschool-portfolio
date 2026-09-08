@@ -1,5 +1,7 @@
 # 🏕️ CampOrga
 
+🇫🇷 Français | 🇬🇧 [English](./README.en.md)
+
 > Plateforme web pour organiser et gérer des summer camps de code & d'informatique — de la création du camp jusqu'à l'inscription des participants.
 
 ![Status](https://img.shields.io/badge/status-en%20d%C3%A9veloppement-F9646A)
@@ -128,9 +130,10 @@ Toute la documentation détaillée du projet (rapports Holberton, schéma de don
 
 | Membre | Rôle |
 |---|---|
-| Thélyaan Dufrénoy | Fullstack Developer / Lead |
-| Harold NGuementa | Frontend / UI Developer |
-| Collins Odi Obi | Backend / DevOps Developer |
+| Thélyaan Dufrénoy | Fullstack Developer / Lead (+ Frontend) |
+| Collins Odi Obi | Backend / DevOps Developer (+ Frontend) |
+
+> Équipe initialement composée de 3 personnes ; Harold NGuementa s'est retiré du projet. Le frontend est désormais partagé entre les deux membres restants.
 
 ## 🗺️ Roadmap
 

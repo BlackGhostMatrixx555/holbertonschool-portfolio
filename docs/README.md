@@ -1,13 +1,17 @@
 # 📚 Documentation — CampOrga
 
+🇫🇷 Français | 🇬🇧 [English](./README.en.md)
+
 Ce dossier centralise toute la documentation du projet : les livrables du Portfolio Project (Holberton School France) ainsi que les spécifications techniques.
 
 ## 🎓 Portfolio Project — Holberton
 
 | Document | Description |
 |---|---|
-| [`stage1-report-en.pdf`](./stage1-report-en.pdf) | Team formation, brainstorming & MVP selection |
-| [`stage2-project-planning-en.pdf`](./stage2-project-planning-en.pdf) | High-level project plan & milestones |
+| [`stage1-report.pdf`](./stage1-report.pdf) | Formation de l'équipe, brainstorming et sélection du MVP *(FR)* |
+| [`stage1-report-en.pdf`](./stage1-report-en.pdf) | Team formation, brainstorming & MVP selection *(EN)* |
+| [`stage2-project-planning.pdf`](./stage2-project-planning.pdf) | Planning global du projet et jalons *(FR)* |
+| [`stage2-project-planning-en.pdf`](./stage2-project-planning-en.pdf) | High-level project plan & milestones *(EN)* |
 
 ## 🗄️ Spécifications techniques
 
