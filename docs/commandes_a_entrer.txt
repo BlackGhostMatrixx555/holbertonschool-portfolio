@@ -1,0 +1,13 @@
+# Commandes terminal d'éxéution :
+
+docker compose up --build
+
+docker compose exec backend alembic upgrade head
+
+docker compose exec db psql -U camporga -c "\dt"
+
+
+# URLs de vérification :
+
+http://localhost:8000/health
+http://localhost:8000/docs
