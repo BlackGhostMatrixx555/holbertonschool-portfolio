@@ -99,6 +99,10 @@ class CampService:
         """Récupère un camp par son slug (utilisé par la route publique)."""
         return self.db.query(Camp).filter(Camp.slug == slug).first()
 
+    def get_by_id(self, camp_id: uuid.UUID) -> Camp | None:
+        """Récupère un camp par son UUID (utilisé par PATCH et DELETE)."""
+        return self.db.query(Camp).filter(Camp.id == camp_id).first()
+
     # ------------------------------------------------------------------
     # Mise à jour
     # ------------------------------------------------------------------
@@ -109,3 +113,13 @@ class CampService:
         self.db.commit()
         self.db.refresh(camp)
         return camp
+
+    # ------------------------------------------------------------------
+    # Suppression
+    # ------------------------------------------------------------------
+    def delete(self, camp: Camp) -> None:
+        """Supprime un camp. Les modalités, la landing page et les inscriptions
+        liées sont supprimées en cascade grâce à `cascade="all, delete-orphan"`.
+        """
+        self.db.delete(camp)
+        self.db.commit()

@@ -1,14 +1,12 @@
 """
 Tests pour les endpoints `/api/camps`.
 
-Couvre les 7 cas validés manuellement via Swagger :
-- POST créer un camp (201)
-- GET lister les camps (200)
-- GET public par slug (200, filtré)
-- POST sans header X-User-Id (401)
-- POST avec UUID inexistant (401)
-- POST avec dates inversées (422)
-- POST avec dates valides (201)
+Couvre :
+- POST /api/camps            : création (succès, doublon slug, sans auth, UUID bidon, dates inversées)
+- GET  /api/camps            : liste (vide, avec données, filtre par statut)
+- GET  /api/camps/{slug}/public : vue publique (succès, 404)
+- PATCH /api/camps/{id}      : mise à jour (succès, dates invalides, 404, sans auth)
+- DELETE /api/camps/{id}     : suppression (succès, 404, sans auth)
 """
 
 
@@ -98,7 +96,6 @@ def test_create_camp_invalid_dates(client, auth_headers):
     assert response.status_code == 422
 
     body = response.json()
-    # Vérifie que le message d'erreur mentionne le problème de dates
     assert any(
         "end_date doit être supérieure ou égale à start_date" in err["msg"]
         for err in body["detail"]
@@ -178,7 +175,6 @@ def test_get_public_camp_success(client, auth_headers):
     assert response.status_code == 200
 
     body = response.json()
-    # Les champs publics sont présents
     assert body["name"] == "Camp Public"
     assert body["slug"] == "camp-public"
     assert len(body["modalities"]) == 1
@@ -192,3 +188,100 @@ def test_get_public_camp_not_found(client):
     response = client.get("/api/camps/slug-inexistant/public")
     assert response.status_code == 404
     assert response.json()["detail"] == "Camp introuvable."
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/camps/{id} — mise à jour
+# ---------------------------------------------------------------------------
+def test_update_camp_success(client, auth_headers):
+    """PATCH /api/camps/{id} → 200 + champs modifiés."""
+    create_payload = {
+        "name": "Camp à Modifier",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-15",
+        "capacity": 10,
+        "status": "draft",
+    }
+    create_response = client.post("/api/camps", json=create_payload, headers=auth_headers)
+    camp_id = create_response.json()["id"]
+
+    update_payload = {"name": "Camp Modifié", "capacity": 25, "status": "published"}
+    response = client.patch(f"/api/camps/{camp_id}", json=update_payload, headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "Camp Modifié"
+    assert body["capacity"] == 25
+    assert body["status"] == "published"
+    # Le slug reste inchangé (volontairement)
+    assert body["slug"] == "camp-a-modifier"
+
+
+def test_update_camp_invalid_dates(client, auth_headers):
+    """PATCH /api/camps/{id} avec dates inversées → 422."""
+    create_payload = {
+        "name": "Camp Test",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-15",
+        "capacity": 10,
+    }
+    create_response = client.post("/api/camps", json=create_payload, headers=auth_headers)
+    camp_id = create_response.json()["id"]
+
+    update_payload = {"start_date": "2026-08-01", "end_date": "2026-07-15"}
+    response = client.patch(f"/api/camps/{camp_id}", json=update_payload, headers=auth_headers)
+    assert response.status_code == 422
+
+
+def test_update_camp_not_found(client, auth_headers):
+    """PATCH /api/camps/{id} avec UUID inexistant → 404."""
+    fake_id = "11111111-1111-1111-1111-111111111111"
+    response = client.patch(
+        f"/api/camps/{fake_id}",
+        json={"name": "Nouveau Nom"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Camp introuvable."
+
+
+def test_update_camp_without_auth(client):
+    """PATCH /api/camps/{id} sans header → 401."""
+    fake_id = "11111111-1111-1111-1111-111111111111"
+    response = client.patch(f"/api/camps/{fake_id}", json={"name": "Nouveau Nom"})
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/camps/{id} — suppression
+# ---------------------------------------------------------------------------
+def test_delete_camp_success(client, auth_headers):
+    """DELETE /api/camps/{id} → 204 + camp supprimé."""
+    create_payload = {
+        "name": "Camp à Supprimer",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-15",
+        "capacity": 10,
+    }
+    create_response = client.post("/api/camps", json=create_payload, headers=auth_headers)
+    camp_id = create_response.json()["id"]
+
+    response = client.delete(f"/api/camps/{camp_id}", headers=auth_headers)
+    assert response.status_code == 204
+
+    list_response = client.get("/api/camps")
+    assert list_response.json() == []
+
+
+def test_delete_camp_not_found(client, auth_headers):
+    """DELETE /api/camps/{id} avec UUID inexistant → 404."""
+    fake_id = "11111111-1111-1111-1111-111111111111"
+    response = client.delete(f"/api/camps/{fake_id}", headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_delete_camp_without_auth(client):
+    """DELETE /api/camps/{id} sans header → 401."""
+    fake_id = "11111111-1111-1111-1111-111111111111"
+    response = client.delete(f"/api/camps/{fake_id}")
+    assert response.status_code == 401
