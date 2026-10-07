@@ -1,6 +1,29 @@
+# --- Secrets ---
 backend/.env
+
+# --- macOS ---
 .DS_Store
+
+# --- Python ---
 __pycache__/
-.pytest_cache/
-node_modules/
 *.pyc
+*.pyo
+*.pyd
+
+# --- Tests / Coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.cache/
+
+# --- Node (futur frontend) ---
+node_modules/
+dist/
+.vite/
+
+# --- IDE ---
+.vscode/
+.idea/
+*.swp
