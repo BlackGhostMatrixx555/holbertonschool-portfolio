@@ -2,18 +2,19 @@
 Tests pour les endpoints `/api/camps`.
 
 Couvre :
-- POST /api/camps            : création (succès, doublon slug, sans auth, UUID bidon, dates inversées)
+- POST /api/camps            : création (succès, doublon slug, sans auth, user inexistant, dates inversées)
 - GET  /api/camps            : liste (vide, avec données, filtre par statut)
 - GET  /api/camps/{slug}/public : vue publique (succès, 404)
 - PATCH /api/camps/{id}      : mise à jour (succès, dates invalides, 404, sans auth)
 - DELETE /api/camps/{id}     : suppression (succès, 404, sans auth)
 """
+from app.security import create_access_token
 
 
 # ---------------------------------------------------------------------------
 # POST /api/camps — création
 # ---------------------------------------------------------------------------
-def test_create_camp_success(client, auth_headers):
+def test_create_camp_success(client, auth_headers, test_user):
     """POST /api/camps avec données valides → 201 + camp créé."""
     payload = {
         "name": "Code Explorers — Été 2026",
@@ -38,7 +39,7 @@ def test_create_camp_success(client, auth_headers):
     assert body["status"] == "draft"
     assert body["capacity"] == 20
     assert len(body["modalities"]) == 2
-    assert body["organizer_id"] == auth_headers["X-User-Id"]
+    assert body["organizer_id"] == str(test_user.id)
 
 
 def test_create_camp_slug_uniqueness(client, auth_headers):
@@ -58,7 +59,7 @@ def test_create_camp_slug_uniqueness(client, auth_headers):
 
 
 def test_create_camp_without_auth(client):
-    """POST /api/camps sans header X-User-Id → 401."""
+    """POST /api/camps sans token → 401."""
     payload = {
         "name": "Sans Auth",
         "start_date": "2026-07-01",
@@ -67,21 +68,43 @@ def test_create_camp_without_auth(client):
     }
     response = client.post("/api/camps", json=payload)
     assert response.status_code == 401
-    assert response.json()["detail"] == "Header X-User-Id manquant."
+    assert response.json()["detail"] == "Token d'authentification manquant."
 
 
 def test_create_camp_with_unknown_user(client):
-    """POST /api/camps avec UUID inexistant → 401."""
+    """POST /api/camps avec un JWT valide pointant vers un user inexistant → 401."""
+    # Token valide (signé), mais dont l'UUID n'existe pas en base.
+    token = create_access_token(subject="11111111-1111-1111-1111-111111111111")
     payload = {
         "name": "UUID Bidon",
         "start_date": "2026-07-01",
         "end_date": "2026-07-15",
         "capacity": 10,
     }
-    headers = {"X-User-Id": "11111111-1111-1111-1111-111111111111"}
-    response = client.post("/api/camps", json=payload, headers=headers)
+    response = client.post(
+        "/api/camps",
+        json=payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert response.status_code == 401
     assert response.json()["detail"] == "Utilisateur introuvable."
+
+
+def test_create_camp_with_invalid_token(client):
+    """POST /api/camps avec un token bidon → 401."""
+    payload = {
+        "name": "Token Bidon",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-15",
+        "capacity": 10,
+    }
+    response = client.post(
+        "/api/camps",
+        json=payload,
+        headers={"Authorization": "Bearer ceci-nest-pas-un-jwt"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Token invalide ou expiré."
 
 
 def test_create_camp_invalid_dates(client, auth_headers):
@@ -246,7 +269,7 @@ def test_update_camp_not_found(client, auth_headers):
 
 
 def test_update_camp_without_auth(client):
-    """PATCH /api/camps/{id} sans header → 401."""
+    """PATCH /api/camps/{id} sans token → 401."""
     fake_id = "11111111-1111-1111-1111-111111111111"
     response = client.patch(f"/api/camps/{fake_id}", json={"name": "Nouveau Nom"})
     assert response.status_code == 401
@@ -281,7 +304,7 @@ def test_delete_camp_not_found(client, auth_headers):
 
 
 def test_delete_camp_without_auth(client):
-    """DELETE /api/camps/{id} sans header → 401."""
+    """DELETE /api/camps/{id} sans token → 401."""
     fake_id = "11111111-1111-1111-1111-111111111111"
     response = client.delete(f"/api/camps/{fake_id}")
     assert response.status_code == 401
