@@ -1,4 +1,3 @@
-cat << 'EOF' > app/models/user.py
 import uuid
 import enum
 from sqlalchemy import Column, String, Enum, DateTime, func
@@ -27,4 +26,3 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     camps = relationship("Camp", back_populates="organizer")
-EOF
