@@ -10,6 +10,11 @@ class MessageStatus(str, enum.Enum):
     READ = "read"
     ARCHIVED = "archived"
 
+
+class ContactChannel(str, enum.Enum):
+    HOTLINE = "hotline"
+    CHATBOT = "chatbot"
+
 class ContactMessage(Base):
     __tablename__ = "contact_messages"
 
@@ -18,7 +23,11 @@ class ContactMessage(Base):
     name = Column(String, nullable=False)
     email = Column(String, nullable=False)
     message = Column(Text, nullable=False)
+    channel = Column(Enum(ContactChannel), default=ContactChannel.HOTLINE, nullable=False)
     status = Column(Enum(MessageStatus), default=MessageStatus.UNREAD, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     camp = relationship("Camp", back_populates="messages")
+
+    def __repr__(self):
+        return f"<ContactMessage id={self.id!r} email={self.email!r}>"

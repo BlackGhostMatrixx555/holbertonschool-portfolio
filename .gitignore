@@ -1,4 +1,5 @@
 # --- Secrets ---
+.env
 backend/.env
 
 # --- macOS ---

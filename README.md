@@ -92,6 +92,18 @@ docker compose up --build
 - API disponible sur `http://localhost:8000`
 - Documentation Swagger de l'API sur `http://localhost:8000/docs`
 
+### Premier super admin
+
+L'API ne crée pas de compte administrateur par défaut. Après les migrations, créez explicitement le premier super admin :
+
+```bash
+docker compose exec -e BOOTSTRAP_ADMIN_EMAIL=admin@example.com -e BOOTSTRAP_ADMIN_PASSWORD='mot-de-passe-unique-de-12-caracteres-minimum' backend python -m scripts.bootstrap_admin
+```
+
+En production, définissez `ENVIRONMENT=production` et fournissez une valeur `SECRET_KEY` robuste et privée. Configurez `CORS_ORIGINS` avec les origines exactes du frontend ; n'utilisez pas de wildcard avec les credentials activés.
+
+L'API hotline enregistre les messages pour les organisateurs. Les réponses du chatbot IA nécessitent l'intégration d'un fournisseur d'IA et ses identifiants ; la réception de messages seule ne génère pas de réponses.
+
 ### Sans Docker
 
 ```bash

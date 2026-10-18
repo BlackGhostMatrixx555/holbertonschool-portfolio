@@ -8,7 +8,7 @@ Couvre :
 - PATCH /api/camps/{id}      : mise à jour (succès, dates invalides, 404, sans auth)
 - DELETE /api/camps/{id}     : suppression (succès, 404, sans auth)
 """
-from app.security import create_access_token
+from app.core.security import create_access_token
 
 
 # ---------------------------------------------------------------------------
@@ -39,6 +39,7 @@ def test_create_camp_success(client, auth_headers, test_user):
     assert body["status"] == "draft"
     assert body["capacity"] == 20
     assert len(body["modalities"]) == 2
+    assert [item["type"] for item in body["modalities"]] == ["age_restriction", "education_level"]
     assert body["organizer_id"] == str(test_user.id)
 
 
@@ -128,9 +129,9 @@ def test_create_camp_invalid_dates(client, auth_headers):
 # ---------------------------------------------------------------------------
 # GET /api/camps — liste
 # ---------------------------------------------------------------------------
-def test_list_camps_empty(client):
+def test_list_camps_empty(client, auth_headers):
     """GET /api/camps sur une base vide → 200 + []."""
-    response = client.get("/api/camps")
+    response = client.get("/api/camps", headers=auth_headers)
     assert response.status_code == 200
     assert response.json() == []
 
@@ -145,7 +146,7 @@ def test_list_camps_returns_created(client, auth_headers):
     }
     client.post("/api/camps", json=payload, headers=auth_headers)
 
-    response = client.get("/api/camps")
+    response = client.get("/api/camps", headers=auth_headers)
     assert response.status_code == 200
     camps = response.json()
     assert len(camps) == 1
@@ -171,7 +172,7 @@ def test_list_camps_filter_by_status(client, auth_headers):
     client.post("/api/camps", json=payload_draft, headers=auth_headers)
     client.post("/api/camps", json=payload_published, headers=auth_headers)
 
-    response = client.get("/api/camps?status=draft")
+    response = client.get("/api/camps?status=draft", headers=auth_headers)
     assert response.status_code == 200
     camps = response.json()
     assert len(camps) == 1
@@ -188,6 +189,7 @@ def test_get_public_camp_success(client, auth_headers):
         "start_date": "2026-07-01",
         "end_date": "2026-07-15",
         "capacity": 20,
+        "status": "published",
         "modalities": [
             {"type": "age_restriction", "label": "12-17 ans"},
         ],
@@ -292,7 +294,7 @@ def test_delete_camp_success(client, auth_headers):
     response = client.delete(f"/api/camps/{camp_id}", headers=auth_headers)
     assert response.status_code == 204
 
-    list_response = client.get("/api/camps")
+    list_response = client.get("/api/camps", headers=auth_headers)
     assert list_response.json() == []
 
 

@@ -9,7 +9,7 @@ Couvre :
 from datetime import timedelta
 
 from app.models import User, UserRole, UserStatus
-from app.security import create_access_token, hash_password
+from app.core.security import create_access_token, hash_password
 
 
 # ---------------------------------------------------------------------------
@@ -143,3 +143,47 @@ def test_users_route_allowed_for_super_admin(client, auth_headers):
     response = client.get("/api/users", headers=auth_headers)
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+    assert all("password_hash" not in user for user in response.json())
+
+
+def test_super_admin_can_create_user_without_exposing_password(client, auth_headers):
+    response = client.post(
+        "/api/users",
+        headers=auth_headers,
+        json={
+            "email": "new.organizer@example.com",
+            "password": "a-long-unique-password",
+            "first_name": "New",
+            "last_name": "Organizer",
+            "role": "organizer",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["email"] == "new.organizer@example.com"
+    assert "password_hash" not in response.json()
+
+
+def test_non_admin_cannot_create_user(client, db_session):
+    sem_user = User(
+        first_name="SEM",
+        last_name="User",
+        email="sem-create@example.test",
+        password_hash=hash_password("motdepasse123"),
+        role=UserRole.SEM,
+        status=UserStatus.ACTIVE,
+    )
+    db_session.add(sem_user)
+    db_session.commit()
+    token = create_access_token(subject=str(sem_user.id))
+
+    response = client.post(
+        "/api/users",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "email": "not-allowed@example.test",
+            "password": "a-long-unique-password",
+            "first_name": "No",
+            "last_name": "Access",
+        },
+    )
+    assert response.status_code == 403

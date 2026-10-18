@@ -32,3 +32,6 @@ class Camp(Base):
     modalities = relationship("CampModality", back_populates="camp", cascade="all, delete-orphan")
     landing_page = relationship("LandingPage", back_populates="camp", uselist=False, cascade="all, delete-orphan")
     messages = relationship("ContactMessage", back_populates="camp", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Camp id={self.id!r} name={self.name!r}>"

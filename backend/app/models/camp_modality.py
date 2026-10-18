@@ -6,6 +6,9 @@ from sqlalchemy.orm import relationship
 from app.db.base_class import Base
 
 class ModalityType(str, enum.Enum):
+    AGE_RESTRICTION = "age_restriction"
+    EDUCATION_LEVEL = "education_level"
+    OTHER = "other"
     INCLUDED = "included"
     OPTION = "option"
 

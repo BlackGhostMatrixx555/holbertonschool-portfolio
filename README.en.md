@@ -92,6 +92,18 @@ docker compose up --build
 - API available at `http://localhost:8000`
 - API Swagger docs at `http://localhost:8000/docs`
 
+### Initial super-admin
+
+The API does not create a default administrator. After applying migrations, create the first super-admin explicitly:
+
+```bash
+docker compose exec -e BOOTSTRAP_ADMIN_EMAIL=admin@example.com -e BOOTSTRAP_ADMIN_PASSWORD='use-a-unique-password-of-at-least-12-characters' backend python -m scripts.bootstrap_admin
+```
+
+For production, set `ENVIRONMENT=production` and provide a strong, private `SECRET_KEY`. Configure `CORS_ORIGINS` with the exact frontend origin(s); do not use a wildcard with credentials enabled.
+
+The hotline contact API records messages for organizer review. AI chatbot answers require an AI provider integration and credentials; message intake alone does not generate chatbot responses.
+
 ### Without Docker
 
 ```bash
