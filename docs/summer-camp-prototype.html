@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CampOrga — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,340;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-deep:#1B2454;
+    --navy:#2F3C7E;
+    --navy-soft:#4A57A0;
+    --coral:#F9646A;
+    --coral-deep:#E14A50;
+    --gold:#F3C24B;
+    --cream:#FAFAFD;
+    --surface:#F3F4FA;
+    --line:#E3E5F0;
+    --ink:#1D2140;
+    --muted:#6A6E8C;
+    --white:#FFFFFF;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--navy-deep);
+    font-family:"Inter",sans-serif;
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--gold);color:var(--navy-deep);}
+  h1,h2,h3,.display{font-family:"Fraunces",serif;}
+
+  /* ---------- Prototype chrome ---------- */
+  .proto-header{
+    position:sticky; top:0; z-index:50;
+    background:var(--navy-deep);
+    padding:18px 20px 14px;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .proto-brand{
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:14px;
+  }
+  .proto-dot{width:9px;height:9px;border-radius:50%;background:var(--coral);}
+  .proto-brand span{
+    color:#C9CEEC; font-size:12px; letter-spacing:.14em; text-transform:uppercase; font-weight:600;
+  }
+  .proto-tabs{
+    display:flex; gap:6px; flex-wrap:wrap;
+  }
+  .proto-tab{
+    appearance:none; border:1px solid rgba(255,255,255,0.14);
+    background:rgba(255,255,255,0.04); color:#B9BEE0;
+    font-family:"Inter",sans-serif; font-size:13px; font-weight:600;
+    padding:9px 14px; border-radius:999px; cursor:pointer;
+    display:flex; align-items:center; gap:8px;
+    transition:background .2s ease, color .2s ease, border-color .2s ease;
+    white-space:nowrap;
+  }
+  .proto-tab b{
+    font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:11px;
+    opacity:.7;
+  }
+  .proto-tab:hover{background:rgba(255,255,255,0.08); color:var(--white);}
+  .proto-tab.active{background:var(--coral); border-color:var(--coral); color:var(--white);}
+  .proto-tab.active b{opacity:.9;}
+
+  .stage{
+    max-width:1180px; margin:0 auto; padding:26px 20px 70px;
+  }
+  .browser{
+    background:var(--white);
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:0 30px 70px -20px rgba(0,0,0,0.55);
+  }
+  .browser-bar{
+    background:#EDEEF6; padding:12px 16px;
+    display:flex; align-items:center; gap:14px;
+    border-bottom:1px solid var(--line);
+  }
+  .browser-dots{display:flex; gap:6px;}
+  .browser-dots span{width:9px;height:9px;border-radius:50%;background:#D3D5E4;}
+  .browser-url{
+    flex:1; background:var(--white); border-radius:8px; padding:6px 12px;
+    font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--muted);
+    border:1px solid var(--line);
+  }
+  .screen{ display:none; }
+  .screen.active{ display:block; }
+
+  /* ---------- Shared bits ---------- */
+  .badge{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:600;
+    letter-spacing:.04em; padding:5px 10px; border-radius:999px;
+  }
+  .btn{
+    appearance:none; border:none; cursor:pointer;
+    font-family:"Inter",sans-serif; font-weight:600; font-size:14px;
+    padding:13px 22px; border-radius:11px;
+    display:inline-flex; align-items:center; gap:8px;
+    transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn:focus-visible{outline:3px solid var(--gold); outline-offset:2px;}
+  .btn-primary{background:var(--coral); color:var(--white); box-shadow:0 10px 22px -10px rgba(249,100,106,.7);}
+  .btn-primary:hover{background:var(--coral-deep);}
+  .btn-ghost{background:transparent; color:var(--white); border:1px solid rgba(255,255,255,0.35);}
+  .btn-ghost:hover{border-color:var(--white);}
+  .btn-outline{background:var(--white); color:var(--navy); border:1px solid var(--line);}
+  .btn-outline:hover{border-color:var(--navy-soft);}
+
+  /* ============ SCREEN 1 : LANDING PUBLIQUE ============ */
+  .landing{ position:relative; background:var(--navy-deep); color:var(--white); overflow:hidden; }
+  .landing canvas{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .landing-nav{
+    position:relative; z-index:2;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px 40px; border-bottom:1px solid rgba(255,255,255,0.1);
+  }
+  .landing-logo{display:flex; align-items:center; gap:9px; font-family:"Fraunces",serif; font-weight:600; font-size:17px;}
+  .landing-logo .mark{width:12px;height:12px;border-radius:3px;background:var(--gold);}
+  .landing-nav-right{display:flex; align-items:center; gap:18px; font-size:13.5px; color:#C9CEEC;}
+
+  .landing-hero{
+    position:relative; z-index:2;
+    padding:64px 40px 46px;
+  }
+  .season-picker{
+    display:inline-flex; gap:6px; background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.12); padding:5px; border-radius:999px; margin-bottom:26px;
+  }
+  .season-btn{
+    appearance:none; border:none; background:transparent; cursor:pointer;
+    color:#B9BEE0; font-family:"Inter",sans-serif; font-size:12.5px; font-weight:600;
+    padding:7px 13px; border-radius:999px; transition:.2s;
+  }
+  .season-btn.active{background:var(--white); color:var(--navy-deep);}
+
+  .landing-eyebrow{
+    font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--gold); margin:0 0 14px;
+  }
+  .landing-hero h1{
+    font-size:52px; line-height:1.04; font-weight:600; margin:0 0 16px; max-width:680px;
+  }
+  .landing-hero p.lede{
+    color:#C9CEEC; font-size:16px; max-width:520px; margin:0 0 34px; line-height:1.6;
+  }
+
+  .countdown{
+    display:flex; gap:14px; margin-bottom:34px; flex-wrap:wrap;
+  }
+  .countdown .unit{
+    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
+    border-radius:12px; padding:14px 18px; min-width:76px; text-align:center;
+    backdrop-filter:blur(2px);
+  }
+  .countdown .unit .num{
+    font-family:"IBM Plex Mono",monospace; font-size:28px; font-weight:600; color:var(--white); display:block;
+  }
+  .countdown .unit .lbl{
+    font-size:10.5px; color:#9AA1D1; text-transform:uppercase; letter-spacing:.1em; margin-top:4px; display:block;
+  }
+
+  .landing-ctas{display:flex; gap:12px; flex-wrap:wrap; margin-bottom:30px;}
+  .linkedin-btn{
+    background:transparent; border:1px solid rgba(255,255,255,0.35); color:var(--white);
+  }
+  .landing-meta{display:flex; align-items:center; gap:14px; color:#B9BEE0; font-size:13px;}
+  .avatars{display:flex;}
+  .avatars .av{
+    width:30px;height:30px;border-radius:50%; border:2px solid var(--navy-deep);
+    background:var(--navy-soft); margin-left:-8px; display:flex; align-items:center; justify-content:center;
+    font-size:10.5px; font-weight:700; color:#fff;
+  }
+  .avatars .av:first-child{margin-left:0;}
+
+  .landing-details{
+    position:relative; z-index:2; background:var(--surface); color:var(--ink);
+    padding:48px 40px; display:grid; grid-template-columns:1.3fr 1fr; gap:40px;
+  }
+  .landing-details h2{font-size:22px; margin:0 0 12px;}
+  .landing-details p{color:var(--muted); font-size:14.5px; line-height:1.7; margin:0 0 20px;}
+  .modalites{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px;}
+  .modalites li{
+    display:flex; align-items:center; gap:10px; font-size:13.5px; color:var(--ink);
+    background:var(--white); border:1px solid var(--line); padding:11px 14px; border-radius:10px;
+  }
+  .modalites li .dot{width:7px;height:7px;border-radius:50%;background:var(--coral); flex:none;}
+  .contact-card{
+    background:var(--white); border:1px solid var(--line); border-radius:14px; padding:22px;
+    height:fit-content;
+  }
+  .contact-card h3{font-size:15px; margin:0 0 6px;}
+  .contact-card p{font-size:13px; color:var(--muted); margin:0 0 16px;}
+  .contact-row{display:flex; align-items:center; gap:10px; font-size:13px; padding:9px 0; border-top:1px solid var(--line);}
+  .contact-row:first-of-type{border-top:none;}
+  .chatbubble{
+    position:fixed; right:26px; bottom:26px; z-index:60;
+    width:54px; height:54px; border-radius:50%; background:var(--coral); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+    box-shadow:0 14px 26px -10px rgba(249,100,106,.8); cursor:pointer; border:none;
+  }
+
+  /* ============ SCREEN 2 : INSCRIPTION ============ */
+  .inscription{ background:var(--surface); padding:56px 24px; display:flex; justify-content:center; }
+  .insc-wrap{width:100%; max-width:520px;}
+  .insc-summary{
+    background:var(--navy-deep); color:#fff; border-radius:14px 14px 0 0; padding:22px 26px;
+  }
+  .insc-summary .badge{background:var(--gold); color:var(--navy-deep);}
+  .insc-summary h2{font-size:20px; margin:12px 0 4px;}
+  .insc-summary p{margin:0; color:#B9BEE0; font-size:13px;}
+  .insc-form{
+    background:var(--white); border:1px solid var(--line); border-top:none;
+    border-radius:0 0 14px 14px; padding:26px; display:flex; flex-direction:column; gap:16px;
+  }
+  .field label{
+    display:block; font-size:12.5px; font-weight:600; color:var(--ink); margin-bottom:6px;
+  }
+  .field input, .field textarea{
+    width:100%; border:1px solid var(--line); border-radius:9px; padding:11px 13px;
+    font-family:"Inter",sans-serif; font-size:14px; color:var(--ink); background:var(--cream);
+  }
+  .field input:focus, .field textarea:focus{outline:2px solid var(--navy-soft); outline-offset:1px;}
+  .field-row{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .checkrow{
+    display:flex; align-items:flex-start; gap:10px; background:var(--surface);
+    border:1px solid var(--line); border-radius:10px; padding:12px 14px; font-size:13px; color:var(--ink);
+  }
+  .checkrow input{margin-top:2px;}
+
+  /* ============ SCREEN 3 : DASHBOARD ORGANISATEUR ============ */
+  .dash{ display:grid; grid-template-columns:220px 1fr; min-height:640px; background:var(--white); }
+  .dash-side{
+    background:var(--navy-deep); color:#fff; padding:22px 16px; display:flex; flex-direction:column; gap:4px;
+  }
+  .dash-side .brand{display:flex; align-items:center; gap:9px; font-family:"Fraunces",serif; font-size:16px; font-weight:600; margin-bottom:22px; padding:0 8px;}
+  .dash-side .brand .mark{width:11px;height:11px;border-radius:3px;background:var(--gold);}
+  .dash-link{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:9px;
+    color:#AEB4E0; font-size:13.5px; font-weight:500; cursor:default;
+  }
+  .dash-link .ic{width:16px; text-align:center;}
+  .dash-link.active{background:rgba(255,255,255,0.08); color:#fff;}
+  .dash-main{padding:28px 32px; background:var(--surface);}
+  .dash-top{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:22px;}
+  .dash-top h1{font-size:24px; margin:0 0 4px;}
+  .dash-top p{color:var(--muted); font-size:13.5px; margin:0;}
+  .stat-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px;}
+  .stat-card{background:var(--white); border:1px solid var(--line); border-radius:13px; padding:16px 18px;}
+  .stat-card .lbl{font-size:12px; color:var(--muted); margin-bottom:8px;}
+  .stat-card .val{font-family:"IBM Plex Mono",monospace; font-size:24px; font-weight:600; color:var(--navy-deep);}
+  .panel{background:var(--white); border:1px solid var(--line); border-radius:13px; padding:20px 22px; margin-bottom:16px;}
+  .panel h3{font-size:14.5px; margin:0 0 14px;}
+  .camp-row{
+    display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-top:1px solid var(--line);
+  }
+  .camp-row:first-of-type{border-top:none;}
+  .camp-info{display:flex; align-items:center; gap:12px;}
+  .camp-ic{width:36px;height:36px;border-radius:9px;background:var(--surface); display:flex; align-items:center; justify-content:center; font-size:16px;}
+  .camp-name{font-size:13.5px; font-weight:600; color:var(--ink);}
+  .camp-sub{font-size:12px; color:var(--muted);}
+  .fill-badge{font-family:"IBM Plex Mono",monospace; font-size:11.5px; font-weight:600; padding:5px 10px; border-radius:999px;}
+
+  /* ============ SCREEN 4 : ADMIN UTILISATEURS ============ */
+  .admin{ background:var(--surface); padding:32px; min-height:640px; }
+  .admin-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;}
+  .admin-top h1{font-size:22px; margin:0 0 4px;}
+  .admin-top p{color:var(--muted); font-size:13.5px; margin:0;}
+  .user-table{background:var(--white); border:1px solid var(--line); border-radius:13px; overflow:hidden;}
+  .user-row{
+    display:grid; grid-template-columns:2fr 1.2fr 1fr 1fr 0.8fr; gap:10px; align-items:center;
+    padding:14px 20px; border-top:1px solid var(--line); font-size:13px;
+  }
+  .user-row.head{
+    background:var(--surface); font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); font-weight:600; border-top:none;
+  }
+  .user-person{display:flex; align-items:center; gap:10px;}
+  .user-av{width:32px;height:32px;border-radius:50%; background:var(--navy); color:#fff; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;}
+  .role-badge{font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:600;}
+  .status-dot{display:flex; align-items:center; gap:6px; font-size:12.5px;}
+  .status-dot span{width:7px;height:7px;border-radius:50%;}
+
+  @media (max-width:820px){
+    .landing-details{grid-template-columns:1fr;}
+    .stat-grid{grid-template-columns:repeat(2,1fr);}
+    .dash{grid-template-columns:1fr;}
+    .dash-side{display:flex; flex-direction:row; overflow-x:auto;}
+    .field-row{grid-template-columns:1fr;}
+    .user-row{grid-template-columns:1.6fr 1fr 1fr; font-size:12px;}
+    .user-row .col-camps, .user-row .col-status{display:none;}
+    .landing-hero h1{font-size:36px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .landing canvas{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="proto-header">
+  <div class="proto-brand">
+    <span class="proto-dot"></span>
+    <span>Prototype — CampOrga · 4 écrans</span>
+  </div>
+  <div class="proto-tabs">
+    <button class="proto-tab active" data-screen="s1"><b>01</b> Landing publique</button>
+    <button class="proto-tab" data-screen="s2"><b>02</b> Inscription</button>
+    <button class="proto-tab" data-screen="s3"><b>03</b> Dashboard organisateur</button>
+    <button class="proto-tab" data-screen="s4"><b>04</b> Admin utilisateurs</button>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url" id="url-bar">camporga.fr/code-explorers</div>
+    </div>
+
+    <!-- ===== SCREEN 1 — LANDING PUBLIQUE ===== -->
+    <section class="screen active" id="s1">
+      <div class="landing">
+        <canvas id="particles"></canvas>
+
+        <div class="landing-nav">
+          <div class="landing-logo"><span class="mark"></span> CampOrga</div>
+          <div class="landing-nav-right">
+            <span>Aide</span><span>Hotline</span>
+          </div>
+        </div>
+
+        <div class="landing-hero">
+          <div class="season-picker">
+            <button class="season-btn" data-season="printemps">Printemps</button>
+            <button class="season-btn active" data-season="ete">Été</button>
+            <button class="season-btn" data-season="automne">Automne</button>
+            <button class="season-btn" data-season="hiver">Hiver</button>
+          </div>
+
+          <p class="landing-eyebrow">10–15 ans · Paris, France</p>
+          <h1>Code Explorers — une semaine pour apprendre à coder</h1>
+          <p class="lede">Ateliers de programmation, création de jeux vidéo et robotique, encadrés par une équipe de mentors développeurs. Inscription ouverte jusqu'au remplissage complet des places.</p>
+
+          <div class="countdown" id="countdown">
+            <div class="unit"><span class="num" id="cd-d">07</span><span class="lbl">jours</span></div>
+            <div class="unit"><span class="num" id="cd-h">14</span><span class="lbl">heures</span></div>
+            <div class="unit"><span class="num" id="cd-m">22</span><span class="lbl">minutes</span></div>
+            <div class="unit"><span class="num" id="cd-s">09</span><span class="lbl">secondes</span></div>
+          </div>
+
+          <div class="landing-ctas">
+            <button class="btn btn-primary">S'inscrire au camp</button>
+            <button class="btn linkedin-btn">Partager sur LinkedIn</button>
+          </div>
+
+          <div class="landing-meta">
+            <div class="avatars">
+              <div class="av">LM</div><div class="av">TB</div><div class="av">SK</div>
+            </div>
+            <span>32 inscrits sur 35 places</span>
+          </div>
+        </div>
+
+        <div class="landing-details">
+          <div>
+            <h2>Le camp en détail</h2>
+            <p>Sept jours pour apprendre à coder en s'amusant : bases du développement web, Python, création de jeux vidéo et robotique, encadrés par des mentors développeurs. La semaine se clôture par un mini-hackathon.</p>
+            <ul class="modalites">
+              <li><span class="dot"></span> Réservé aux mineurs (10–15 ans)</li>
+              <li><span class="dot"></span> Aucune expérience en programmation requise</li>
+              <li><span class="dot"></span> Ordinateur portable fourni sur place</li>
+            </ul>
+          </div>
+          <div class="contact-card">
+            <h3>Besoin d'aide ?</h3>
+            <p>Une question avant de t'inscrire ?</p>
+            <div class="contact-row">☎ Hotline — 01 84 XX XX XX</div>
+            <div class="contact-row">💬 Assistant IA — réponse immédiate</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SCREEN 2 — INSCRIPTION ===== -->
+    <section class="screen" id="s2">
+      <div class="inscription">
+        <div class="insc-wrap">
+          <div class="insc-summary">
+            <span class="badge">14–20 juillet 2027</span>
+            <h2>Code Explorers — Paris</h2>
+            <p>10–15 ans · 32/35 places prises</p>
+          </div>
+          <div class="insc-form">
+            <div class="field-row">
+              <div class="field"><label>Prénom</label><input placeholder="Léa"></div>
+              <div class="field"><label>Nom</label><input placeholder="Martin"></div>
+            </div>
+            <div class="field"><label>Adresse email</label><input placeholder="lea.martin@email.fr"></div>
+            <div class="field"><label>Commentaire (optionnel)</label><textarea rows="3" placeholder="Niveau en programmation, informations utiles..."></textarea></div>
+            <label class="checkrow"><input type="checkbox" checked> Je confirme la participation sur l'ensemble du séjour.</label>
+            <button class="btn btn-primary" style="justify-content:center;">Confirmer l'inscription</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SCREEN 3 — DASHBOARD ORGANISATEUR ===== -->
+    <section class="screen" id="s3">
+      <div class="dash">
+        <div class="dash-side">
+          <div class="brand"><span class="mark"></span>CampOrga</div>
+          <div class="dash-link active"><span class="ic">◆</span> Tableau de bord</div>
+          <div class="dash-link"><span class="ic">▤</span> Mes camps</div>
+          <div class="dash-link"><span class="ic">◈</span> Participants</div>
+          <div class="dash-link"><span class="ic">✎</span> Landing pages</div>
+          <div class="dash-link"><span class="ic">✉</span> Messages</div>
+        </div>
+        <div class="dash-main">
+          <div class="dash-top">
+            <div>
+              <h1>Bonjour Tété 👋</h1>
+              <p>Voici l'état de tes summer camps aujourd'hui</p>
+            </div>
+            <button class="btn btn-outline">+ Nouveau camp</button>
+          </div>
+
+          <div class="stat-grid">
+            <div class="stat-card"><div class="lbl">Camps actifs</div><div class="val">3</div></div>
+            <div class="stat-card"><div class="lbl">Inscrits</div><div class="val">96</div></div>
+            <div class="stat-card"><div class="lbl">Remplissage moyen</div><div class="val">81%</div></div>
+            <div class="stat-card"><div class="lbl">Messages en attente</div><div class="val">4</div></div>
+          </div>
+
+          <div class="panel">
+            <h3>Mes camps</h3>
+            <div class="camp-row">
+              <div class="camp-info"><div class="camp-ic">💻</div><div><div class="camp-name">Code Explorers — Paris</div><div class="camp-sub">10–15 ans · 14–20 juil</div></div></div>
+              <span class="fill-badge" style="background:#E9F6EC; color:#2C7A39;">32/35</span>
+            </div>
+            <div class="camp-row">
+              <div class="camp-info"><div class="camp-ic">🎮</div><div><div class="camp-name">Game Jam Junior — Lyon</div><div class="camp-sub">8–12 ans · 21–27 juil</div></div></div>
+              <span class="fill-badge" style="background:#FDF3DC; color:#946B00;">18/30</span>
+            </div>
+            <div class="camp-row">
+              <div class="camp-info"><div class="camp-ic">🤖</div><div><div class="camp-name">Robotique & IA — Lille</div><div class="camp-sub">12–16 ans · 28 juil–3 août</div></div></div>
+              <span class="fill-badge" style="background:#FCE8E8; color:#B23A3E;">40/40</span>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Inscriptions récentes</h3>
+            <div class="camp-row">
+              <div class="camp-info"><div class="camp-ic" style="background:var(--navy); color:#fff; font-size:12px; font-weight:700;">LM</div><div><div class="camp-name">Léa Martin</div><div class="camp-sub">Code Explorers · il y a 12 min</div></div></div>
+            </div>
+            <div class="camp-row">
+              <div class="camp-info"><div class="camp-ic" style="background:var(--navy); color:#fff; font-size:12px; font-weight:700;">TB</div><div><div class="camp-name">Théo Bernard</div><div class="camp-sub">Game Jam Junior · il y a 47 min</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SCREEN 4 — ADMIN UTILISATEURS ===== -->
+    <section class="screen" id="s4">
+      <div class="admin">
+        <div class="admin-top">
+          <div>
+            <h1>Utilisateurs</h1>
+            <p>Gérer les accès de la plateforme — super admin uniquement</p>
+          </div>
+          <button class="btn btn-primary">+ Ajouter un utilisateur</button>
+        </div>
+        <div class="user-table">
+          <div class="user-row head">
+            <div>Utilisateur</div><div>Rôle</div><div class="col-camps">Camps gérés</div><div class="col-status">Statut</div><div>Actions</div>
+          </div>
+          <div class="user-row">
+            <div class="user-person"><div class="user-av">MK</div>Malik Konan</div>
+            <div class="role-badge" style="color:var(--navy);">SWE</div>
+            <div class="col-camps">2</div>
+            <div class="col-status"><div class="status-dot"><span style="background:#2C7A39;"></span>Actif</div></div>
+            <div style="color:var(--muted);">···</div>
+          </div>
+          <div class="user-row">
+            <div class="user-person"><div class="user-av">AF</div>Amara Faye</div>
+            <div class="role-badge" style="color:var(--coral-deep);">Directeur de campus</div>
+            <div class="col-camps">5</div>
+            <div class="col-status"><div class="status-dot"><span style="background:#2C7A39;"></span>Actif</div></div>
+            <div style="color:var(--muted);">···</div>
+          </div>
+          <div class="user-row">
+            <div class="user-person"><div class="user-av">JD</div>Julie Dorval</div>
+            <div class="role-badge" style="color:#946B00;">SSM</div>
+            <div class="col-camps">1</div>
+            <div class="col-status"><div class="status-dot"><span style="background:#B9BEC9;"></span>Invité</div></div>
+            <div style="color:var(--muted);">···</div>
+          </div>
+          <div class="user-row">
+            <div class="user-person"><div class="user-av">RT</div>Rayan Toure</div>
+            <div class="role-badge" style="color:var(--navy);">SEM</div>
+            <div class="col-camps">3</div>
+            <div class="col-status"><div class="status-dot"><span style="background:#2C7A39;"></span>Actif</div></div>
+            <div style="color:var(--muted);">···</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<button class="chatbubble" title="Assistant IA">💬</button>
+
+<script>
+  // ---- Tab switching ----
+  const tabs = document.querySelectorAll('.proto-tab');
+  const screens = document.querySelectorAll('.screen');
+  const urlBar = document.getElementById('url-bar');
+  const urls = {
+    s1: 'camporga.fr/code-explorers',
+    s2: 'camporga.fr/code-explorers/inscription',
+    s3: 'app.camporga.fr/dashboard',
+    s4: 'app.camporga.fr/admin/utilisateurs'
+  };
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      screens.forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      const id = tab.dataset.screen;
+      document.getElementById(id).classList.add('active');
+      urlBar.textContent = urls[id];
+    });
+  });
+
+  // ---- Countdown ----
+  const target = new Date(Date.now() + (7*24*3600 + 14*3600 + 22*60 + 9) * 1000);
+  function tick(){
+    const diff = Math.max(0, target - new Date());
+    const d = Math.floor(diff/86400000);
+    const h = Math.floor(diff%86400000/3600000);
+    const m = Math.floor(diff%3600000/60000);
+    const s = Math.floor(diff%60000/1000);
+    document.getElementById('cd-d').textContent = String(d).padStart(2,'0');
+    document.getElementById('cd-h').textContent = String(h).padStart(2,'0');
+    document.getElementById('cd-m').textContent = String(m).padStart(2,'0');
+    document.getElementById('cd-s').textContent = String(s).padStart(2,'0');
+  }
+  tick(); setInterval(tick, 1000);
+
+  // ---- Seasonal "falling count" particle motif ----
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  const seasonThemes = {
+    printemps: { colors:['#F2A6C1','#B7D18C','#F9E58C'], shape:'petal', count:46 },
+    ete:       { colors:['#F3C24B','#F9646A','#FFFFFF'], shape:'spark', count:40 },
+    automne:   { colors:['#D97A3B','#C1502E','#F3C24B'], shape:'leaf',  count:46 },
+    hiver:     { colors:['#E8ECFB','#B9C2EA','#FFFFFF'], shape:'snow',  count:56 }
+  };
+  let currentSeason = 'ete';
+
+  function resize(){
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width; canvas.height = rect.height;
+  }
+  function makeParticles(){
+    const theme = seasonThemes[currentSeason];
+    particles = Array.from({length: theme.count}, () => ({
+      x: Math.random()*canvas.width,
+      y: Math.random()*canvas.height,
+      r: 2 + Math.random()*3.5,
+      speed: 0.35 + Math.random()*0.9,
+      sway: Math.random()*2 - 1,
+      phase: Math.random()*Math.PI*2,
+      color: theme.colors[Math.floor(Math.random()*theme.colors.length)],
+      shape: theme.shape
+    }));
+  }
+  function drawParticle(p){
+    ctx.beginPath();
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = 0.55;
+    if(p.shape === 'snow' || p.shape === 'spark'){
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+    } else {
+      ctx.ellipse(p.x, p.y, p.r*1.4, p.r*0.8, p.phase, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function animate(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p => {
+      p.y += p.speed;
+      p.x += Math.sin(p.phase + p.y*0.01) * p.sway * 0.4;
+      p.phase += 0.01;
+      if(p.y > canvas.height){ p.y = -6; p.x = Math.random()*canvas.width; }
+      drawParticle(p);
+    });
+    requestAnimationFrame(animate);
+  }
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  resize(); makeParticles();
+  if(!reduceMotion){ animate(); }
+  window.addEventListener('resize', () => { resize(); });
+
+  document.querySelectorAll('.season-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.season-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentSeason = btn.dataset.season;
+      makeParticles();
+    });
+  });
+</script>
+
+</body>
+</html>
