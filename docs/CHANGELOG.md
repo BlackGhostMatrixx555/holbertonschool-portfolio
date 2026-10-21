@@ -180,3 +180,18 @@ Suite Pytest de **11 tests** couvrant tous les cas d'usage de l'Étape 4 :
 - `auth_headers` : header `X-User-Id` prêt à l'emploi.
 
 **Résultat** : `11 passed in 0.20s`. Aucune donnée n'est laissée en base après les tests grâce au rollback.
+
+### Ajouté — Étape 6.5 : Chatbot & Hotline
+
+- **`backend/app/schemas/chat.py`** — `ChatRequest`, `ChatResponse`, `ContactMessageCreate`.
+- **`backend/app/services/chat_service.py`** — `ChatService` :
+  - `process_message()` — répond avec des règles simples (mock du futur LLM).
+  - `create_contact_message()` — enregistre les messages de la hotline.
+- **`backend/app/routes/chat.py`** — 2 endpoints publics :
+  - `POST /api/contact/chat` — envoie un message au chatbot.
+  - `POST /api/contact/hotline` — envoie un message à la hotline.
+- **`backend/tests/test_chat.py`** — 4 tests.
+
+### Modifié
+
+- **`backend/app/main.py`** — branchement du router `chat`, version `0.4.0`.
