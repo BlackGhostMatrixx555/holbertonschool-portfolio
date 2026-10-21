@@ -1,13 +1,15 @@
 """
 Routes de gestion des utilisateurs.
 
-Réservé au super admin.
+- POST   /api/users      : créer un utilisateur (super admin).
+- GET    /api/users      : lister les utilisateurs (super admin).
+- DELETE /api/users/me   : supprimer son propre compte (self-service).
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import require_role
+from app.dependencies import get_current_user, require_role
 from app.models import User, UserRole
 from app.schemas.user import UserCreate, UserRead
 from app.services.user_service import UserService
@@ -45,3 +47,26 @@ def list_users(
 ):
     """Liste tous les utilisateurs. Réservé au super admin."""
     return service.list()
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_my_account(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Permet à un utilisateur de supprimer son propre compte.
+
+    ⚠️ Si l'utilisateur a créé des camps, la contrainte ON DELETE RESTRICT
+    de PostgreSQL empêchera la suppression (400). Il faudra d'abord
+    supprimer les camps ou anonymiser le compte.
+    """
+    try:
+        db.delete(current_user)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Impossible de supprimer le compte : des données y sont encore rattachées.",
+        )
+    return None
