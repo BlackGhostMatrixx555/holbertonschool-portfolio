@@ -8,12 +8,12 @@ et accessible sur `/docs` (Swagger UI) et `/redoc` (ReDoc).
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import auth, backups, camps, users
+from app.routes import auth, backups, camps, chat, users
 
 app = FastAPI(
     title="CampOrga API",
     description="API de gestion de summer camps de code & d'informatique",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 # Autorise le frontend (React, sur un autre port) à appeler l'API en local.
@@ -31,6 +31,7 @@ app.include_router(camps.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(backups.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 
 
 @app.get("/health", tags=["health"])
