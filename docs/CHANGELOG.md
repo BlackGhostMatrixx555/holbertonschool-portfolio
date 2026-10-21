@@ -212,3 +212,32 @@ Suite Pytest de **11 tests** couvrant tous les cas d'usage de l'Étape 4 :
 ### Modifié
 - **`README.md` / `README.en.md`** — Ajout des endpoints de contact et lien vers la roadmap de scalabilité.
 - **`backend/tests/test_chat.py`** — Ajouté à la suite de tests (total : 50 tests).
+
+## [1.2.0] — 2026-10-21 — Inscription publique & Self-Service
+
+### Ajouté
+- **`POST /api/auth/register`** — Endpoint public permettant à un visiteur de créer son propre compte organisateur (rôle `SEM` par défaut). Aucune authentification requise.
+- **`DELETE /api/users/me`** — Endpoint permettant à un utilisateur connecté de supprimer son propre compte (self-service).
+- **`RegisterRequest`** — Nouveau schéma Pydantic pour valider les données d'inscription.
+- **5 nouveaux tests** dans `tests/test_auth.py` pour couvrir ces 2 endpoints.
+
+### Modifié
+- **`backend/app/routes/auth.py`** — Ajout du endpoint `register` et import de `UserRole`, `UserCreate`, `UserRead`.
+- **`backend/app/routes/users.py`** — Ajout du endpoint `delete_my_account` avec gestion de l'erreur `400` (si des données sont rattachées au compte).
+- **`backend/app/schemas/auth.py`** — Ajout du schéma `RegisterRequest`.
+
+### Testé
+- **55 tests** Pytest, tous PASSED.
+- **95%** de couverture de code maintenue.
+- Nouveaux tests :
+  - `test_register_success` (201 + rôle SEM)
+  - `test_register_duplicate_email` (409)
+  - `test_register_short_password` (422)
+  - `test_delete_my_account` (204)
+  - `test_delete_my_account_without_auth` (401)
+
+### Notes
+- **Sécurité** : L'endpoint `/register` attribue **toujours** le rôle `SEM` (organisateur). Il est impossible de créer un `super_admin` via cet endpoint public (principe du moindre privilège).
+- **Self-service** : Un utilisateur peut supprimer son compte, mais si des camps y sont rattachés, la contrainte `ON DELETE RESTRICT` de PostgreSQL l'en empêchera (erreur `400` renvoyée proprement).
+
+---
