@@ -195,3 +195,20 @@ Suite Pytest de **11 tests** couvrant tous les cas d'usage de l'Étape 4 :
 ### Modifié
 
 - **`backend/app/main.py`** — branchement du router `chat`, version `0.4.0`.
+
+## [1.1.0] — 2026-10-21 — Chatbot & Roadmap de scalabilité
+
+### Ajouté — Chatbot & Hotline
+- **`backend/app/schemas/chat.py`** — Schémas `ChatRequest`, `ChatResponse`, `ContactMessageCreate`.
+- **`backend/app/services/chat_service.py`** — `ChatService` avec logique de réponse par règles (mock) et enregistrement des messages.
+- **`backend/app/routes/chat.py`** — Endpoints publics `POST /api/contact/chat` et `POST /api/contact/hotline`.
+- **`backend/tests/test_chat.py`** — 4 tests.
+- **`backend/app/main.py`** — Branchement du routeur `chat`, version `0.4.0`.
+
+### Ajouté — Documentation
+- **`docs/scalability-roadmap.md`** — Plan de scalabilité de 10 à 100 000 utilisateurs (basé sur la présentation SOD nº20).
+- **`docs/demo-guide.md`** — Script pas-à-pas pour la démonstration en soutenance.
+
+### Modifié
+- **`README.md` / `README.en.md`** — Ajout des endpoints de contact et lien vers la roadmap de scalabilité.
+- **`backend/tests/test_chat.py`** — Ajouté à la suite de tests (total : 50 tests).
