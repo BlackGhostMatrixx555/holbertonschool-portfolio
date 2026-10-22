@@ -273,3 +273,40 @@ Suite Pytest de **11 tests** couvrant tous les cas d'usage de l'Étape 4 :
   - `test_register_to_camp_full` (400 si le camp est complet).
   - `test_list_registrations_success` (liste des inscrits).
   - `test_delete_my_account_forbidden_for_super_admin` (protection du Super Admin).
+
+## [1.4.0] — 2026-10-22 — Double Authentification (2FA)
+
+### Ajouté
+- **`backend/app/schemas/two_factor.py`** — Schémas `TwoFactorSetupResponse`, `TwoFactorVerifyRequest`, `TwoFactorLoginRequest`.
+- **`backend/app/services/two_factor_service.py`** — `TwoFactorService` :
+  - `generate_secret()` : génère un secret TOTP + QR code en base64.
+  - `verify_code()` : valide un code TOTP.
+  - `enable_2fa()`, `disable_2fa()` : active/désactive la 2FA.
+  - `create_temp_token()`, `verify_temp_token()` : tokens temporaires (5 min) pour le flux de login 2FA.
+- **`backend/app/routes/two_factor.py`** — 4 endpoints :
+  - `POST /api/auth/2fa/setup` : génère le secret + QR code.
+  - `POST /api/auth/2fa/enable` : active la 2FA après validation du premier code.
+  - `POST /api/auth/2fa/disable` : désactive la 2FA.
+  - `POST /api/auth/2fa/login` : valide le code 2FA et renvoie le vrai JWT.
+- **`backend/tests/test_2fa.py`** — 7 tests couvrant tout le flux.
+
+### Modifié
+- **`backend/app/models/user.py`** — Ajout des colonnes `totp_secret` et `is_2fa_enabled`.
+- **`backend/app/schemas/auth.py`** — Ajout des champs `requires_2fa` et `temp_token` dans `TokenResponse`.
+- **`backend/app/routes/auth.py`** — Le login renvoie un `temp_token` si la 2FA est activée.
+- **`backend/app/main.py`** — Branchement du router `two_factor`, version `0.5.0`.
+- **`backend/requirements.txt`** — Ajout de `pyotp==2.9.0` et `qrcode[pil]==7.4.2`.
+
+### Testé
+- **67 tests** Pytest, tous PASSED.
+- **~96%** de couverture maintenue.
+- 7 nouveaux tests :
+  - `test_setup_2fa` (succès, sans auth).
+  - `test_enable_2fa_with_valid_code`, `test_enable_2fa_with_invalid_code`.
+  - `test_login_with_2fa_returns_temp_token`.
+  - `test_login_2fa_success`, `test_login_2fa_invalid_code`, `test_login_2fa_invalid_temp_token`.
+
+### Notes de sécurité
+- Les codes TOTP sont valides **30 secondes** (tolérance de 1 fenêtre = 90 secondes max).
+- Le `temp_token` expire après **5 minutes**.
+- La 2FA est **optionnelle** : l'utilisateur peut l'activer/désactiver à tout moment.
