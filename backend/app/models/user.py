@@ -4,7 +4,7 @@ Modèle User — les comptes de la plateforme (super admin + organisateurs).
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -29,8 +29,11 @@ class User(Base):
     )
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    # Un utilisateur peut organiser plusieurs camps.
-    # `back_populates` crée le lien dans les deux sens : user.camps et camp.organizer.
+    # --- Champs pour la double authentification (2FA) ---
+    totp_secret = Column(String(32), nullable=True)
+    is_2fa_enabled = Column(Boolean, nullable=False, default=False)
+
+    # Relations
     camps = relationship("Camp", back_populates="organizer")
     backups = relationship("Backup", back_populates="triggered_by_user")
 

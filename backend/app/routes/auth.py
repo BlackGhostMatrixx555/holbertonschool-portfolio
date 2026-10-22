@@ -1,7 +1,7 @@
 """
 Routes d'authentification.
 
-- POST /api/auth/login    : authentifie et renvoie un JWT.
+- POST /api/auth/login    : authentifie (retourne un JWT ou un temp_token pour 2FA).
 - POST /api/auth/register : inscription publique d'un nouvel organisateur.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -13,6 +13,7 @@ from app.models import UserRole
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.user import UserCreate, UserRead
 from app.security import create_access_token
+from app.services.two_factor_service import TwoFactorService
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -22,16 +23,17 @@ def get_user_service(db: Session = Depends(get_db)) -> UserService:
     return UserService(db)
 
 
+def get_2fa_service(db: Session = Depends(get_db)) -> TwoFactorService:
+    return TwoFactorService(db)
+
+
 @router.post("/login", response_model=TokenResponse)
 def login(
     data: LoginRequest,
     service: UserService = Depends(get_user_service),
+    twofa_service: TwoFactorService = Depends(get_2fa_service),
 ):
-    """Authentifie un utilisateur et renvoie un token JWT.
-
-    Le client devra ensuite envoyer ce token dans le header
-    `Authorization: Bearer <token>` pour les requêtes protégées.
-    """
+    """Authentifie un utilisateur. Si la 2FA est activée, renvoie un temp_token."""
     user = service.authenticate(data.email, data.password)
     if user is None:
         raise HTTPException(
@@ -39,6 +41,15 @@ def login(
             detail="Email ou mot de passe incorrect.",
         )
 
+    # Si la 2FA est activée, on renvoie un token temporaire
+    if user.is_2fa_enabled:
+        temp_token = twofa_service.create_temp_token(user)
+        return TokenResponse(
+            requires_2fa=True,
+            temp_token=temp_token,
+        )
+
+    # Sinon, login classique
     token = create_access_token(subject=str(user.id))
     return TokenResponse(
         access_token=token,
@@ -52,21 +63,13 @@ def register(
     data: RegisterRequest,
     service: UserService = Depends(get_user_service),
 ):
-    """Inscription publique d'un nouvel organisateur (rôle SEM par défaut).
-
-    Cet endpoint est public (pas d'authentification requise). Il permet à
-    un visiteur de créer son propre compte organisateur sans passer par
-    le super admin.
-    """
-    # Vérifier que l'email n'est pas déjà utilisé
+    """Inscription publique d'un nouvel organisateur (rôle SEM par défaut)."""
     if service.get_by_email(data.email) is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Un compte avec cet email existe déjà.",
         )
 
-    # Créer l'utilisateur avec le rôle SEM (organisateur) par défaut.
-    # Le super admin ne peut pas être créé via cet endpoint public (sécurité).
     user = service.create(
         UserCreate(
             first_name=data.first_name,
