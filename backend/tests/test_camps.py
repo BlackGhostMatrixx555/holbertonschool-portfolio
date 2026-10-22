@@ -2,11 +2,13 @@
 Tests pour les endpoints `/api/camps`.
 
 Couvre :
-- POST /api/camps            : création (succès, doublon slug, sans auth, user inexistant, dates inversées)
+- POST /api/camps            : création (succès, doublon slug, sans auth, UUID bidon, dates inversées)
 - GET  /api/camps            : liste (vide, avec données, filtre par statut)
 - GET  /api/camps/{slug}/public : vue publique (succès, 404)
 - PATCH /api/camps/{id}      : mise à jour (succès, dates invalides, 404, sans auth)
 - DELETE /api/camps/{id}     : suppression (succès, 404, sans auth)
+- POST /api/camps/{id}/registrations : inscription (succès, complet)
+- GET  /api/camps/{id}/registrations : liste des inscrits (succès)
 """
 from app.security import create_access_token
 
@@ -73,7 +75,6 @@ def test_create_camp_without_auth(client):
 
 def test_create_camp_with_unknown_user(client):
     """POST /api/camps avec un JWT valide pointant vers un user inexistant → 401."""
-    # Token valide (signé), mais dont l'UUID n'existe pas en base.
     token = create_access_token(subject="11111111-1111-1111-1111-111111111111")
     payload = {
         "name": "UUID Bidon",
@@ -201,9 +202,13 @@ def test_get_public_camp_success(client, auth_headers):
     assert body["name"] == "Camp Public"
     assert body["slug"] == "camp-public"
     assert len(body["modalities"]) == 1
+    
+    # Les champs publics sont présents
+    assert body["capacity"] == 20
+    assert body["registration_count"] == 0  # Le compteur est à 0
+    
     # Les champs internes ne sont PAS exposés
     assert "organizer_id" not in body
-    assert "capacity" not in body
 
 
 def test_get_public_camp_not_found(client):
@@ -308,3 +313,103 @@ def test_delete_camp_without_auth(client):
     fake_id = "11111111-1111-1111-1111-111111111111"
     response = client.delete(f"/api/camps/{fake_id}")
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# POST /api/camps/{id}/registrations — inscription d'un visiteur
+# ---------------------------------------------------------------------------
+def test_register_to_camp_success(client, auth_headers):
+    """POST /api/camps/{id}/registrations → 201 + inscription créée."""
+    # 1. Créer un camp avec une capacité de 2
+    camp_payload = {
+        "name": "Camp Inscription",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-15",
+        "capacity": 2,
+    }
+    camp_res = client.post("/api/camps", json=camp_payload, headers=auth_headers)
+    camp_id = camp_res.json()["id"]
+
+    # 2. Inscrire un visiteur (sans auth)
+    reg_payload = {
+        "first_name": "Léa",
+        "last_name": "Martin",
+        "email": "lea.martin@example.com",
+        "comment": "J'ai hâte !",
+        "confirmed": True,
+    }
+    response = client.post(f"/api/camps/{camp_id}/registrations", json=reg_payload)
+    
+    assert response.status_code == 201
+    body = response.json()
+    assert body["first_name"] == "Léa"
+    assert body["email"] == "lea.martin@example.com"
+    
+    # 3. Vérifier que le compteur a augmenté sur la page publique
+    public_res = client.get("/api/camps/camp-inscription/public")
+    assert public_res.json()["registration_count"] == 1
+
+
+def test_register_to_camp_full(client, auth_headers):
+    """POST /api/camps/{id}/registrations quand le camp est complet → 400."""
+    # 1. Créer un camp avec une capacité de 1
+    camp_payload = {
+        "name": "Camp Complet",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-15",
+        "capacity": 1,
+    }
+    camp_res = client.post("/api/camps", json=camp_payload, headers=auth_headers)
+    camp_id = camp_res.json()["id"]
+
+    # 2. Inscrire un premier visiteur (OK)
+    reg_payload = {
+        "first_name": "Premier",
+        "last_name": "Inscrit",
+        "email": "premier@example.com",
+        "confirmed": True,
+    }
+    client.post(f"/api/camps/{camp_id}/registrations", json=reg_payload)
+
+    # 3. Tenter d'inscrire un deuxième visiteur (doit échouer)
+    reg_payload_2 = {
+        "first_name": "Deuxième",
+        "last_name": "Inscrit",
+        "email": "deuxieme@example.com",
+        "confirmed": True,
+    }
+    response = client.post(f"/api/camps/{camp_id}/registrations", json=reg_payload_2)
+    
+    assert response.status_code == 400
+    assert "complet" in response.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
+# GET /api/camps/{id}/registrations — liste des inscrits
+# ---------------------------------------------------------------------------
+def test_list_registrations_success(client, auth_headers):
+    """GET /api/camps/{id}/registrations en tant qu'organisateur → 200."""
+    # 1. Créer un camp
+    camp_payload = {
+        "name": "Camp avec Inscrits",
+        "start_date": "2026-07-01",
+        "end_date": "2026-07-15",
+        "capacity": 10,
+    }
+    camp_res = client.post("/api/camps", json=camp_payload, headers=auth_headers)
+    camp_id = camp_res.json()["id"]
+
+    # 2. Inscrire 2 visiteurs
+    client.post(f"/api/camps/{camp_id}/registrations", json={"first_name": "A", "last_name": "B", "email": "a@b.com"})
+    client.post(f"/api/camps/{camp_id}/registrations", json={"first_name": "C", "last_name": "D", "email": "c@d.com"})
+
+    # 3. Lister les inscriptions (avec le token de l'organisateur)
+    response = client.get(f"/api/camps/{camp_id}/registrations", headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 2
+    # On vérifie que les 2 inscrits sont présents (sans dépendre de l'ordre, 
+    # car les timestamps peuvent être identiques dans une même transaction)
+    first_names = {r["first_name"] for r in body}
+    assert first_names == {"A", "C"}

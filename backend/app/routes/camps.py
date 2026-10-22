@@ -1,140 +1,111 @@
 """
 Routes HTTP pour les camps.
-
-Endpoints :
-  - POST   /api/camps                : créer un camp (organisateur connecté).
-  - GET    /api/camps                : lister les camps (filtres optionnels).
-  - GET    /api/camps/{slug}/public  : consulter un camp publiquement via son slug.
-  - PATCH  /api/camps/{id}           : modifier un camp (organisateur/admin).
-  - DELETE /api/camps/{id}           : supprimer un camp (organisateur/admin).
 """
 import uuid
-
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models import Camp, CampStatus, User
+from app.models import Camp, CampStatus, Registration, User, UserRole
 from app.schemas.camp import CampCreate, CampPublicRead, CampRead, CampUpdate
+from app.schemas.registration import RegistrationCreate, RegistrationRead
 from app.services.camp_service import CampService
+from app.services.registration_service import RegistrationService
 
 router = APIRouter(prefix="/camps", tags=["camps"])
 
-
 def get_camp_service(db: Session = Depends(get_db)) -> CampService:
-    """Fournit une instance de CampService liée à la session courante."""
     return CampService(db)
 
+def get_registration_service(db: Session = Depends(get_db)) -> RegistrationService:
+    return RegistrationService(db)
 
 # ---------------------------------------------------------------------------
-# POST /api/camps — créer un camp
+# CRUD Camps
 # ---------------------------------------------------------------------------
 @router.post("", response_model=CampRead, status_code=status.HTTP_201_CREATED)
-def create_camp(
-    data: CampCreate,
-    service: CampService = Depends(get_camp_service),
-    current_user: User = Depends(get_current_user),
-):
-    """Crée un camp appartenant à l'utilisateur connecté."""
-    camp = service.create(data, organizer_id=current_user.id)
-    return camp
+def create_camp(data: CampCreate, service: CampService = Depends(get_camp_service), current_user: User = Depends(get_current_user)):
+    return service.create(data, organizer_id=current_user.id)
 
-
-# ---------------------------------------------------------------------------
-# GET /api/camps — lister les camps
-# ---------------------------------------------------------------------------
 @router.get("", response_model=list[CampRead])
-def list_camps(
-    status_filter: CampStatus | None = Query(None, alias="status"),
-    organizer_id: uuid.UUID | None = Query(None),
-    service: CampService = Depends(get_camp_service),
-):
-    """Liste les camps, avec filtres optionnels par statut et organisateur."""
+def list_camps(status_filter: CampStatus | None = Query(None, alias="status"), organizer_id: uuid.UUID | None = Query(None), service: CampService = Depends(get_camp_service)):
     return service.list(status=status_filter, organizer_id=organizer_id)
 
+@router.patch("/{camp_id}", response_model=CampRead)
+def update_camp(camp_id: uuid.UUID, data: CampUpdate, service: CampService = Depends(get_camp_service), current_user: User = Depends(get_current_user)):
+    camp = service.get_by_id(camp_id)
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp introuvable.")
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.DIRECTEUR_CAMPUS, UserRole.DIRECTEUR_TECHNIQUE]
+    if camp.organizer_id != current_user.id and current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas autorisé à modifier ce camp.")
+    return service.update(camp, data)
+
+@router.delete("/{camp_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_camp(camp_id: uuid.UUID, service: CampService = Depends(get_camp_service), current_user: User = Depends(get_current_user)):
+    camp = service.get_by_id(camp_id)
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp introuvable.")
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.DIRECTEUR_CAMPUS, UserRole.DIRECTEUR_TECHNIQUE]
+    if camp.organizer_id != current_user.id and current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas autorisé à supprimer ce camp.")
+    service.delete(camp)
+    return None
 
 # ---------------------------------------------------------------------------
-# GET /api/camps/{slug}/public — vue publique
+# Landing Page (Vue publique avec compteur)
 # ---------------------------------------------------------------------------
 @router.get("/{slug}/public", response_model=CampPublicRead)
-def get_public_camp(
-    slug: str,
-    service: CampService = Depends(get_camp_service),
-):
-    """Récupère un camp via son slug, pour la landing page publique."""
+def get_public_camp(slug: str, service: CampService = Depends(get_camp_service), reg_service: RegistrationService = Depends(get_registration_service)):
     camp = service.get_by_slug(slug)
-    if camp is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Camp introuvable.",
-        )
-    return camp
-
-
-# ---------------------------------------------------------------------------
-# PATCH /api/camps/{id} — modifier un camp
-# ---------------------------------------------------------------------------
-@router.patch("/{camp_id}", response_model=CampRead)
-def update_camp(
-    camp_id: uuid.UUID,
-    data: CampUpdate,
-    service: CampService = Depends(get_camp_service),
-    current_user: User = Depends(get_current_user),
-):
-    """Met à jour partiellement un camp.
-
-    Seuls les champs fournis dans le corps sont modifiés. Les autres restent
-    inchangés (comportement PATCH standard).
-
-    Règles métier (à étendre en Étape 5 avec la gestion des rôles) :
-      - Le super admin peut modifier n'importe quel camp.
-      - L'organisateur ne peut modifier que ses propres camps.
-    """
-    camp = service.get_by_id(camp_id)
-    if camp is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Camp introuvable.",
-        )
-
-    # Vérification des droits (temporaire : avant Étape 5)
-    if camp.organizer_id != current_user.id and current_user.role.value != "super_admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous n'êtes pas autorisé à modifier ce camp.",
-        )
-
-    updated = service.update(camp, data)
-    return updated
-
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp introuvable.")
+    
+    # On construit la réponse manuellement pour y injecter le compteur
+    response_data = CampPublicRead.model_validate(camp).model_dump()
+    response_data["registration_count"] = reg_service.count_for_camp(camp.id)
+    return response_data
 
 # ---------------------------------------------------------------------------
-# DELETE /api/camps/{id} — supprimer un camp
+# Inscriptions (Visiteurs & Organisateurs)
 # ---------------------------------------------------------------------------
-@router.delete("/{camp_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_camp(
-    camp_id: uuid.UUID,
-    service: CampService = Depends(get_camp_service),
-    current_user: User = Depends(get_current_user),
-):
-    """Supprime un camp et toutes ses données liées (modalités, landing page,
-    inscriptions) grâce au cascade configuré dans les modèles SQLAlchemy.
+@router.post("/{camp_id}/registrations", response_model=RegistrationRead, status_code=status.HTTP_201_CREATED)
+def register_to_camp(camp_id: uuid.UUID, data: RegistrationCreate, reg_service: RegistrationService = Depends(get_registration_service)):
+    """Inscription publique (aucune authentification requise)."""
+    try:
+        return reg_service.create(camp_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    Mêmes règles métier que PATCH.
-    """
-    camp = service.get_by_id(camp_id)
-    if camp is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Camp introuvable.",
-        )
+@router.get("/{camp_id}/registrations", response_model=list[RegistrationRead])
+def list_registrations(camp_id: uuid.UUID, db: Session = Depends(get_db), reg_service: RegistrationService = Depends(get_registration_service), current_user: User = Depends(get_current_user)):
+    """Liste des inscrits. Réservé aux organisateurs du camp, directeurs et super admin."""
+    camp = db.query(Camp).filter(Camp.id == camp_id).first()
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp introuvable.")
+    
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.DIRECTEUR_CAMPUS, UserRole.DIRECTEUR_TECHNIQUE]
+    if camp.organizer_id != current_user.id and current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Vous n'avez pas le droit de voir les inscrits de ce camp.")
+    
+    return reg_service.list_for_camp(camp_id)
 
-    if camp.organizer_id != current_user.id and current_user.role.value != "super_admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Vous n'êtes pas autorisé à supprimer ce camp.",
-        )
-
-    service.delete(camp)
+@router.delete("/{camp_id}/registrations/{registration_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_registration(camp_id: uuid.UUID, registration_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Supprime une inscription (Organisateur du camp / Directeur / Super Admin)."""
+    camp = db.query(Camp).filter(Camp.id == camp_id).first()
+    if not camp:
+        raise HTTPException(status_code=404, detail="Camp introuvable.")
+    
+    allowed_roles = [UserRole.SUPER_ADMIN, UserRole.DIRECTEUR_CAMPUS, UserRole.DIRECTEUR_TECHNIQUE]
+    if camp.organizer_id != current_user.id and current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Action non autorisée.")
+    
+    reg = db.query(Registration).filter(Registration.id == registration_id, Registration.camp_id == camp_id).first()
+    if not reg:
+        raise HTTPException(status_code=404, detail="Inscription introuvable.")
+    
+    db.delete(reg)
+    db.commit()
     return None
