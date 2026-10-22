@@ -241,3 +241,35 @@ Suite Pytest de **11 tests** couvrant tous les cas d'usage de l'Étape 4 :
 - **Self-service** : Un utilisateur peut supprimer son compte, mais si des camps y sont rattachés, la contrainte `ON DELETE RESTRICT` de PostgreSQL l'en empêchera (erreur `400` renvoyée proprement).
 
 ---
+
+## [1.3.0] — 2026-10-22 — Inscriptions publiques & Hiérarchie des rôles
+
+### Ajouté — Inscriptions (Alignement avec le prototype HTML)
+- **`backend/app/schemas/registration.py`** — Schémas `RegistrationCreate`, `RegistrationRead`.
+- **`backend/app/services/registration_service.py`** — `RegistrationService` :
+  - `create()` : inscription d'un visiteur avec vérification de la capacité.
+  - `list_for_camp()` : liste des inscrits (pour le dashboard).
+  - `count_for_camp()` : compteur d'inscrits (pour la landing page).
+- **`POST /api/camps/{id}/registrations`** — Endpoint public d'inscription.
+- **`GET /api/camps/{id}/registrations`** — Liste des inscrits (organisateur, directeurs, super admin).
+- **`DELETE /api/camps/{id}/registrations/{reg_id}`** — Suppression d'une inscription.
+- **`CampPublicRead`** — Ajout des champs `capacity` et `registration_count` pour que le frontend affiche "X/Y places".
+
+### Ajouté — Hiérarchie des rôles (RBAC avancé)
+- **Super Admin éternel** : Impossible de le supprimer (ni par lui-même, ni par un autre Super Admin). La protection est dans le code (`routes/users.py`).
+- **Super Admin tout-puissant** : Ajout de `DELETE /api/users/{id}` pour supprimer n'importe quel utilisateur.
+- **Directeurs superviseurs** : Les rôles `directeur_campus` et `directeur_technique` peuvent désormais modifier/supprimer n'importe quel camp, et gérer les inscriptions de tous les camps.
+- **Organisateurs limités** : Les rôles `sem`, `swe`, `ssm` ne peuvent gérer que leurs propres camps et leurs propres inscriptions.
+
+### Modifié
+- **`backend/app/routes/camps.py`** — Logique de vérification des droits basée sur la hiérarchie des rôles.
+- **`backend/app/routes/users.py`** — Ajout de la protection du Super Admin et de l'endpoint de suppression par ID.
+
+### Testé
+- **59 tests** Pytest, tous PASSED.
+- **~96%** de couverture de code maintenue.
+- Nouveaux tests :
+  - `test_register_to_camp_success` (201 + compteur mis à jour).
+  - `test_register_to_camp_full` (400 si le camp est complet).
+  - `test_list_registrations_success` (liste des inscrits).
+  - `test_delete_my_account_forbidden_for_super_admin` (protection du Super Admin).
