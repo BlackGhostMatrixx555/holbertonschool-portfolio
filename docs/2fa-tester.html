@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampOrga — Testeur 2FA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+    <!-- On utilise une librairie JS pour générer le QR Code -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --navy: #1B2454;
+            --coral: #F9646A;
+            --surface: #F3F4FA;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--navy);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: var(--surface);
+            color: #1D2140;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        h1 { margin-top: 0; color: var(--navy); }
+        p { color: #6A6E8C; margin-bottom: 20px; }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #E3E5F0;
+            border-radius: 8px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+        button {
+            background: var(--coral);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #E14A50; }
+        #qrcode-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            min-height: 200px;
+            align-items: center;
+        }
+        .secret-box {
+            margin-top: 15px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 14px;
+            background: #E3E5F0;
+            padding: 8px;
+            border-radius: 6px;
+            word-break: break-all;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🔐 Testeur 2FA</h1>
+    <p>Colle l'URL <code>otpauth://</code> générée par l'API CampOrga (champ <code>otpauth_url</code>).</p>
+    
+    <input type="text" id="otpauth-input" placeholder="otpauth://totp/CampOrga:admin@camporga.fr?secret=...&issuer=CampOrga">
+    
+    <button onclick="generateQR()">Générer le QR Code</button>
+
+    <div id="qrcode-container">
+        <span style="color: #ccc;">Le QR code apparaîtra ici</span>
+    </div>
+    
+    <div class="secret-box" id="secret-display"></div>
+</div>
+
+<script>
+    function generateQR() {
+        const input = document.getElementById('otpauth-input').value.trim();
+        const container = document.getElementById('qrcode-container');
+        const secretDisplay = document.getElementById('secret-display');
+
+        // Nettoyer le conteneur
+        container.innerHTML = '';
+        secretDisplay.style.display = 'none';
+
+        if (!input) {
+            container.innerHTML = '<span style="color: red;">Veuillez coller une URL otpauth://</span>';
+            return;
+        }
+
+        if (!input.startsWith('otpauth://')) {
+            container.innerHTML = '<span style="color: red;">L\'URL doit commencer par otpauth://</span>';
+            return;
+        }
+
+        try {
+            // Génère le QR code
+            new QRCode(container, {
+                text: input,
+                width: 200,
+                height: 200,
+                colorDark : "#1B2454",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+
+            // Affiche le secret en dessous (au cas où le scan échoue)
+            const urlParams = new URLSearchParams(input.split('?')[1]);
+            const secret = urlParams.get('secret');
+            if (secret) {
+                secretDisplay.style.display = 'block';
+                secretDisplay.textContent = "Secret (si le scan échoue) : " + secret;
+            }
+        } catch (e) {
+            container.innerHTML = '<span style="color: red;">Erreur lors de la génération du QR code.</span>';
+        }
+    }
+</script>
+
+</body>
+</html>
