@@ -20,6 +20,7 @@ class User(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     email = Column(String(255), nullable=False, unique=True, index=True)
+    phone_number = Column(String(20), nullable=True)  # <-- Nouveau champ
     password_hash = Column(String(255), nullable=False)
     role = Column(pg_enum(UserRole, "user_role"), nullable=False)
     status = Column(
@@ -29,7 +30,7 @@ class User(Base):
     )
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
-    # --- Champs pour la double authentification (2FA) ---
+    # Champs pour la double authentification (2FA TOTP)
     totp_secret = Column(String(32), nullable=True)
     is_2fa_enabled = Column(Boolean, nullable=False, default=False)
 

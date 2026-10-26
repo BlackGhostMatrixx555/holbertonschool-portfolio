@@ -6,13 +6,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import UserRole, UserStatus
 from app.schemas.types import DevEmailStr as EmailStr
+
+from app.models.enums import UserRole, UserStatus
 
 
 class UserCreate(BaseModel):
     """Données pour créer un utilisateur (super admin uniquement)."""
-
     first_name: str = Field(..., min_length=1, max_length=100)
     last_name: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
@@ -21,17 +21,14 @@ class UserCreate(BaseModel):
 
 
 class UserRead(BaseModel):
-    """Utilisateur tel que renvoyé par l'API.
-
-    ⚠️ On n'expose JAMAIS `password_hash`.
-    """
-
+    """Utilisateur tel que renvoyé par l'API."""
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     first_name: str
     last_name: str
     email: EmailStr
+    phone_number: str | None = None  # <-- Nouveau champ
     role: UserRole
     status: UserStatus
     created_at: datetime
