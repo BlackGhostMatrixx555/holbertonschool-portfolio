@@ -1,0 +1,272 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  font-family: 'DM Sans', sans-serif;
+  color: #19251f;
+  background: #fbfaf7;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --green: #1b684c;
+  --dark: #19251f;
+  --muted: #69746e;
+  --border: #e8e9e3;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; background: #fbfaf7; }
+a { color: inherit; text-decoration: none; }
+
+.topbar {
+  height: 76px;
+  padding: 0 8%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fbfaf7;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 700 21px 'Space Grotesk', sans-serif;
+}
+
+.brand::before {
+  content: '</>';
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 34px;
+  border-radius: 10px;
+  color: #fff;
+  background: var(--green);
+  font-size: 12px;
+}
+
+.organizer-link {
+  font-size: 14px;
+  font-weight: 600;
+}
+.organizer-link:hover { color: var(--green); }
+
+.hero {
+  min-height: 450px;
+  padding: 70px 12%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  overflow: hidden;
+  background: #eaf1e8;
+}
+
+.hero-content { max-width: 590px; z-index: 1; }
+
+.eyebrow {
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
+
+h1 {
+  margin: 18px 0;
+  font-size: clamp(42px, 6vw, 68px);
+  line-height: 1.04;
+  letter-spacing: -3px;
+}
+
+.hero-copy {
+  max-width: 460px;
+  color: #56635b;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 18px;
+  padding: 14px 20px;
+  border-radius: 7px;
+  color: #fff;
+  background: var(--green);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background .2s, transform .2s;
+}
+.primary-button:hover {
+  background: #14553d;
+  transform: translateY(-2px);
+}
+
+.hero-art {
+  position: relative;
+  width: 300px;
+  height: 280px;
+  flex: 0 0 300px;
+  display: grid;
+  place-items: center;
+}
+
+.hero-art::before,
+.hero-art::after {
+  content: '';
+  position: absolute;
+  width: 230px;
+  height: 170px;
+  border: 1px solid #b7cdb9;
+  border-radius: 50%;
+  transform: rotate(-28deg);
+}
+.hero-art::after {
+  width: 250px;
+  height: 150px;
+  transform: rotate(32deg);
+}
+
+.code-card {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 150px;
+  height: 120px;
+  border: 1px solid #d6e2d4;
+  border-radius: 24px;
+  color: var(--green);
+  background: #fff;
+  box-shadow: 0 20px 45px #315b3c20;
+  font: 700 42px 'Space Grotesk', sans-serif;
+  transform: rotate(-8deg);
+}
+
+.camps-section { padding: 76px 12% 90px; }
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+.section-heading .eyebrow { margin: 0 0 8px; }
+
+h2 {
+  margin: 0;
+  font-size: 34px;
+  letter-spacing: -1px;
+}
+
+.camp-count { color: var(--muted); font-size: 14px; }
+
+.camp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 22px;
+}
+
+.camp-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  transition: transform .2s, box-shadow .2s;
+}
+.camp-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px #19251f12;
+}
+
+.camp-illustration {
+  height: 150px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: #dcebdc;
+}
+.illustration-1 { background: #f2e8d9; }
+.illustration-2 { background: #e4e1f2; }
+
+.illustration-symbol {
+  color: #235a40;
+  font: 700 48px 'Space Grotesk', sans-serif;
+}
+.illustration-1 .illustration-symbol { color: #9a6433; }
+.illustration-2 .illustration-symbol { color: #62518c; }
+
+.camp-label {
+  position: absolute;
+  top: 15px;
+  left: 16px;
+  color: #536158;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.camp-info { padding: 20px; }
+.camp-location {
+  margin: 0 0 8px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+}
+.camp-info h3 { margin: 0 0 10px; font-size: 21px; }
+.camp-description {
+  min-height: 48px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.camp-dates { color: #48544d; font-size: 13px; }
+.camp-dates span { color: #9aa39d; padding: 0 4px; }
+.share-link {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.notice {
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: #fff;
+}
+.notice.error { color: #9a3333; }
+
+footer {
+  padding: 25px 8%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+.footer-brand { color: var(--dark); font-size: 17px; }
+
+@media (max-width: 700px) {
+  .topbar { padding: 0 6%; }
+  .hero { padding: 58px 7%; }
+  .hero-art { display: none; }
+  .camps-section { padding: 58px 7%; }
+  .section-heading {
+    align-items: start;
+    gap: 12px;
+    flex-direction: column;
+  }
+  h2 { font-size: 29px; }
+  footer {
+    align-items: start;
+    gap: 12px;
+    flex-direction: column;
+  }
+}
