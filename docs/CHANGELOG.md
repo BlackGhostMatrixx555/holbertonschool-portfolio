@@ -310,3 +310,27 @@ Suite Pytest de **11 tests** couvrant tous les cas d'usage de l'Étape 4 :
 - Les codes TOTP sont valides **30 secondes** (tolérance de 1 fenêtre = 90 secondes max).
 - Le `temp_token` expire après **5 minutes**.
 - La 2FA est **optionnelle** : l'utilisateur peut l'activer/désactiver à tout moment.
+
+## [1.5.0] — 2026-10-23 — Vérification SMS/Email
+
+### Ajouté
+- **`backend/app/services/verification_service.py`** — `VerificationService` :
+  - `send_sms_code()` : génère un code à 6 chiffres et le "logge" (mock).
+  - `send_email_code()` : idem pour l'email.
+  - `verify_code()` : valide le code, gère l'expiration (5 min) et la consommation unique.
+- **`backend/app/routes/verification.py`** — 3 endpoints :
+  - `POST /api/auth/verify/send-sms` : envoie un code par SMS.
+  - `POST /api/auth/verify/send-email` : envoie un code par Email.
+  - `POST /api/auth/verify/check-code` : valide le code.
+- **`backend/tests/test_verification.py`** — 7 tests couvrant le flux complet.
+
+### Modifié
+- **`backend/app/models/user.py`** — Ajout du champ `phone_number`.
+- **`backend/app/schemas/user.py`** — Exposition de `phone_number` dans `UserRead`.
+- **`backend/app/main.py`** — Branchement du router `verification`, version `0.6.0`.
+- **`backend/alembic/versions/f2abce421ba7_*.py`** — Migration pour `phone_number`.
+
+### Notes
+- **Mode Mock** : en MVP, les codes sont affichés dans les logs (`📱 [MOCK SMS]`, `📧 [MOCK EMAIL]`) au lieu d'être réellement envoyés. En production, il suffira de remplacer le `print()` par un appel à Twilio/SendGrid.
+- **Sécurité** : les codes sont valides 5 minutes et à usage unique (consommés à la première validation).
+- **Tests** : 74 tests, ~96% de couverture.
