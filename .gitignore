@@ -28,5 +28,8 @@ dist/
 .idea/
 *.swp
 
-
+# --- Backups ---
 backend/backups/
+
+# --- Rapports d'audit générés ---
+scripts/RAPPORT_*.md
