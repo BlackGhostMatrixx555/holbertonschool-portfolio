@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 CampOrga — Outil d'Audit Multi-Projets et de Sécurité
-Usage: python3 scripts/compat_evaluator.py <projet1> [projet2] ...
+Usage:
+    python3 compat_evaluator.py <projet1> [projet2] ...
+    python3 compat_evaluator.py --full <projet1>   # Exporte aussi l'arborescence complète
 """
 
 import sys
@@ -9,6 +11,7 @@ import re
 from pathlib import Path
 from datetime import datetime
 
+# Couleurs terminal
 GREEN = '\033[92m'
 YELLOW = '\033[93m'
 RED = '\033[91m'
@@ -24,6 +27,18 @@ STANDARD_ROUTES = {
     "POST /api/camps",
     "POST /api/camps/{id}/registrations",
     "POST /api/contact/chat",
+}
+
+# Extensions de fichiers texte à inclure dans l'export complet
+TEXT_EXTENSIONS = {
+    ".py", ".ts", ".tsx", ".js", ".jsx", ".json", ".md", ".txt",
+    ".yml", ".yaml", ".html", ".css", ".sql", ".sh", ".toml", ".ini",
+}
+
+# Dossiers à ignorer dans l'export complet
+IGNORED_DIRS = {
+    "node_modules", ".git", "__pycache__", ".venv", "venv",
+    "dist", "build", ".pytest_cache", ".vite", ".next", ".cache"
 }
 
 
@@ -126,20 +141,18 @@ class ProjectAuditor:
                     pass
 
     # ------------------------------------------------------------------
-    # Sécurité (sans faux positifs)
+    # Sécurité
     # ------------------------------------------------------------------
     def check_security(self):
         for py_file in self.path.rglob("*.py"):
-            # On ignore les tests et le script lui-même
             if "test_" in py_file.name or "conftest" in py_file.name or "compat_evaluator" in py_file.name:
                 continue
-
             try:
                 content = py_file.read_text(errors="ignore")
             except Exception:
                 continue
 
-            # 1. Détection de la CRÉATION d'un Super Admin
+            # Création réelle de Super Admin
             creation_patterns = [
                 r'UserService\([^)]*\)\.create\([\s\S]*?SUPER_ADMIN',
                 r'User\([\s\S]*?role\s*=\s*UserRole\.SUPER_ADMIN',
@@ -151,7 +164,7 @@ class ProjectAuditor:
                     self.log(f"Création de Super Admin dans {py_file.name}", "WARN")
                     break
 
-            # 2. Failles (uniquement dans les fichiers de config/route)
+            # Failles dans les fichiers de config/route uniquement
             is_config_or_route = any(
                 x in str(py_file) for x in ["/routes/", "/api/", "main.py", "config.py", "security.py"]
             )
@@ -183,7 +196,6 @@ class ProjectAuditor:
             self.log("Le dossier n'existe pas.", "ERR")
             return
 
-        # 1. Structure
         for f in ["backend/app/main.py", "backend/app/models/", "backend/tests/", "backend/requirements.txt"]:
             if not (self.path / f).exists():
                 self.missing_files.append(f)
@@ -191,7 +203,6 @@ class ProjectAuditor:
             else:
                 self.log(f"Trouvé : {f}", "OK")
 
-        # 2. Routes
         found_routes = self.extract_routes()
         self.log(f"{len(found_routes)} routes détectées au total", "INFO")
         for route in found_routes:
@@ -201,16 +212,13 @@ class ProjectAuditor:
             else:
                 self.extra_routes.add(route)
 
-        # 3. Dépendances
         self.check_dependencies()
         self.log(f"{len(self.dependencies)} dépendances analysées", "INFO")
 
-        # 4. Conflits Git
         self.check_git_conflicts()
         if self.git_conflicts:
             self.log(f"⚠️ {len(self.git_conflicts)} fichiers avec des conflits Git !", "ERR")
 
-        # 5. Sécurité
         self.log("Analyse de sécurité en cours...", "INFO")
         self.check_security()
         for issue in self.security_issues:
@@ -223,6 +231,50 @@ class ProjectAuditor:
         score -= len(self.git_conflicts) * 5
         score -= len(self.security_issues) * 15
         return max(0, score)
+
+    # ------------------------------------------------------------------
+    # Export complet de l'arborescence
+    # ------------------------------------------------------------------
+    def export_full_tree(self, output_path: Path):
+        """Exporte l'arborescence et le contenu des fichiers texte."""
+        with open(output_path, "w", encoding="utf-8") as out:
+            out.write(f"# Arborescence complète — {self.project_name}\n")
+            out.write(f"Généré le : {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+            out.write(f"Chemin : {self.path}\n\n")
+            out.write("=" * 70 + "\n\n")
+
+            # 1. Arborescence
+            out.write("## 📁 Structure des fichiers\n\n")
+            for file in sorted(self.path.rglob("*")):
+                if any(part in IGNORED_DIRS for part in file.parts):
+                    continue
+                rel = file.relative_to(self.path)
+                indent = "  " * (len(rel.parts) - 1)
+                symbol = "📁" if file.is_dir() else "📄"
+                out.write(f"{indent}{symbol} {rel.name}\n")
+            out.write("\n" + "=" * 70 + "\n\n")
+
+            # 2. Contenu des fichiers texte
+            out.write("## 📄 Contenu des fichiers\n\n")
+            for file in sorted(self.path.rglob("*")):
+                if any(part in IGNORED_DIRS for part in file.parts):
+                    continue
+                if not file.is_file():
+                    continue
+                if file.suffix.lower() not in TEXT_EXTENSIONS:
+                    continue
+
+                rel = file.relative_to(self.path)
+                out.write("\n" + "=" * 70 + "\n")
+                out.write(f"📄 FICHIER : {rel}\n")
+                out.write("=" * 70 + "\n")
+                try:
+                    out.write(file.read_text(errors="ignore"))
+                except Exception as e:
+                    out.write(f"[Erreur de lecture : {e}]")
+                out.write("\n")
+
+        print(f"{BLUE}✅ Arborescence complète :{RESET} {GREEN}{output_path}{RESET}")
 
 
 # ----------------------------------------------------------------------
@@ -327,15 +379,26 @@ def generate_reports(auditors):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(f"Usage: python3 {sys.argv[0]} <projet1> [projet2] ...")
+    args = sys.argv[1:]
+    full_mode = "--full" in args
+    if full_mode:
+        args.remove("--full")
+
+    if not args:
+        print(f"Usage: python3 {sys.argv[0]} [--full] <projet1> [projet2] ...")
         sys.exit(1)
 
     auditors = []
-    for path in sys.argv[1:]:
+    for path in args:
         aud = ProjectAuditor(path)
         aud.analyze()
         auditors.append(aud)
+
+        if full_mode:
+            script_dir = Path(__file__).parent.resolve()
+            safe_name = re.sub(r"[^\w\-]", "_", aud.project_name)
+            export_path = script_dir / f"ARBORESCENCE_{safe_name}.txt"
+            aud.export_full_tree(export_path)
 
     compare_dependencies(auditors)
     generate_reports(auditors)

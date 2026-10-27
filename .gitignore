@@ -33,3 +33,4 @@ backend/backups/
 
 # --- Rapports d'audit générés ---
 scripts/RAPPORT_*.md
+scripts/ARBORESCENCE_*.txt
