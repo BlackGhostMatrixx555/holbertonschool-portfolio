@@ -3,11 +3,13 @@ Fixtures partagées pour tous les tests backend.
 """
 import uuid
 
+import mongomock
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 
 from app.db.base_class import Base
+from app.db.mongo import get_mongo_db
 from app.db.session import SessionLocal, engine
 from app.main import app
 from app.models import User, UserRole, UserStatus
@@ -64,8 +66,14 @@ def db_session():
 
 
 @pytest.fixture(scope="function")
-def client(db_session):
-    """Fournit un TestClient FastAPI branché sur la session de test."""
+def mongo_db():
+    """Base MongoDB simulée en mémoire (mongomock), vide à chaque test."""
+    return mongomock.MongoClient(tz_aware=True)["camporga_test"]
+
+
+@pytest.fixture(scope="function")
+def client(db_session, mongo_db):
+    """Fournit un TestClient FastAPI branché sur les bases de test."""
 
     def override_get_db():
         try:
@@ -74,6 +82,7 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_mongo_db] = lambda: mongo_db
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

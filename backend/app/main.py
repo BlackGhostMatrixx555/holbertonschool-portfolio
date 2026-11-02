@@ -4,18 +4,41 @@ Point d'entrée de l'API CampOrga.
 Assemble l'application : middleware CORS, gestion des erreurs métier,
 routeurs de chaque domaine et routes de supervision (health / ready).
 """
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api import auth, backups, camps, contact_messages, dashboard, landing_pages, registrations, users
+from pymongo.errors import PyMongoError
+
+from app.api import auth, backups, camps, chat, contact_messages, dashboard, landing_pages, registrations, users
 from app.core.config import settings
 from app.core.exceptions import AppError
+from app.db.mongo import ensure_indexes, get_mongo_db
 from app.db.session import engine
 
+logger = logging.getLogger("camporga")
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Au démarrage : crée les index MongoDB. L'API démarre même si MongoDB
+    est indisponible : seul le chatbot sera inaccessible (réponse 503)."""
+    # Respecte une éventuelle surcharge (les tests utilisent une base simulée).
+    provider = application.dependency_overrides.get(get_mongo_db, get_mongo_db)
+    try:
+        ensure_indexes(provider())
+    except PyMongoError as exc:
+        logger.warning("MongoDB indisponible au démarrage : %s", exc)
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="CampOrga API",
     version="0.2.0",
     description="API de gestion de summer camps de code : camps, landing pages, inscriptions.",
@@ -39,7 +62,7 @@ def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
 
 
 # Toutes les routes métier sont préfixées par /api.
-for module in (auth, users, camps, registrations, landing_pages, contact_messages, dashboard, backups):
+for module in (auth, users, camps, registrations, landing_pages, contact_messages, chat, dashboard, backups):
     app.include_router(module.router, prefix="/api")
 
 
