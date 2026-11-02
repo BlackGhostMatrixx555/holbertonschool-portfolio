@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
 # ==============================================================================
-# CampOrga — Script de gestion du cycle de vie
+# CampOrga — Script de gestion du cycle de vie (Docker ou Podman)
 # ==============================================================================
 
 set -e
 
+# --- Couleurs ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
@@ -15,13 +16,22 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-check_docker() {
-    if ! docker info > /dev/null 2>&1; then
-        log_error "Docker n'est pas en cours d'exécution."
+# --- Détection de l'outil de conteneurisation ---
+detect_container_tool() {
+    if command -v podman &> /dev/null && podman compose version &> /dev/null; then
+        echo "podman compose"
+    elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
+        echo "docker compose"
+    else
+        log_error "Ni 'podman compose' ni 'docker compose' n'est installé."
         exit 1
     fi
 }
 
+CONTAINER_CMD=$(detect_container_tool)
+log_info "Outil de conteneurisation détecté : ${CONTAINER_CMD}"
+
+# --- Vérification du .env ---
 check_env() {
     if [ ! -f "backend/.env" ]; then
         log_warn "Le fichier backend/.env n'existe pas. Création..."
@@ -35,21 +45,33 @@ check_env() {
     fi
 }
 
-do_start() {
-    check_docker
-    check_env
-    log_info "Démarrage de PostgreSQL et FastAPI..."
-    docker compose up -d --build
-
+# --- Attente de la base de données ---
+wait_for_db() {
     log_info "Attente que la base de données soit prête..."
-    until docker compose exec -T db pg_isready -U camporga > /dev/null 2>&1; do
-        echo -n "."
+    local retries=30
+    until $CONTAINER_CMD exec -T db pg_isready -U camporga > /dev/null 2>&1; do
         sleep 1
+        retries=$((retries - 1))
+        if [ $retries -eq 0 ]; then
+            log_error "La base de données n'est pas prête après 30 secondes."
+            exit 1
+        fi
+        echo -n "."
     done
     echo ""
+    log_info "Base de données prête."
+}
+
+# --- Commandes ---
+do_start() {
+    check_env
+    log_info "Démarrage de PostgreSQL et FastAPI..."
+    $CONTAINER_CMD up -d --build
+
+    wait_for_db
 
     log_info "Application des migrations Alembic..."
-    docker compose exec backend alembic upgrade head
+    $CONTAINER_CMD exec backend alembic upgrade head
 
     log_info "✅ CampOrga est prêt !"
     echo -e "   API    : http://localhost:8000"
@@ -58,27 +80,24 @@ do_start() {
 }
 
 do_stop() {
-    check_docker
     log_info "Arrêt des services..."
-    docker compose stop
+    $CONTAINER_CMD stop
     log_info "✅ Services arrêtés."
 }
 
 do_restart() {
-    check_docker
     log_info "Redémarrage du backend..."
-    docker compose restart backend
+    $CONTAINER_CMD restart backend
     log_info "✅ Backend redémarré."
 }
 
 do_cleanup() {
-    check_docker
     log_warn "⚠️  ATTENTION : Cette action va supprimer TOUS les conteneurs et TOUTES les données de la base."
     read -p "Êtes-vous sûr de vouloir continuer ? (y/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         log_info "Nettoyage complet en cours..."
-        docker compose down -v --remove-orphans
+        $CONTAINER_CMD down -v --remove-orphans
         log_info "✅ Environnement nettoyé."
     else
         log_info "Nettoyage annulé."
@@ -86,17 +105,13 @@ do_cleanup() {
 }
 
 do_test() {
-    check_docker
-    log_info "Lancement de la suite de tests (67 tests attendus)..."
-    docker compose exec backend pytest --cov=app --cov-report=term-missing
+    log_info "Lancement de la suite de tests (96 tests attendus)..."
+    $CONTAINER_CMD exec backend pytest --cov=app --cov-report=term-missing
 }
 
 do_admin() {
-    check_docker
-    
-    # Vérifier si un super admin existe déjà
     log_info "Vérification de l'existence d'un super admin..."
-    ADMIN_EXISTS=$(docker compose exec -T backend python -c "
+    ADMIN_EXISTS=$($CONTAINER_CMD exec -T backend python -c "
 from app.database import SessionLocal
 from app.models import User, UserRole
 
@@ -119,7 +134,7 @@ finally:
         log_info "Pour changer les identifiants, utilisez : ./camporga.sh admin-reset"
     else
         log_info "Aucun Super Admin trouvé. Création du compte par défaut..."
-        docker compose exec backend python -c "
+        $CONTAINER_CMD exec backend python -c "
 from app.database import SessionLocal
 from app.models import UserRole
 from app.schemas.user import UserCreate
@@ -147,18 +162,17 @@ finally:
 }
 
 do_admin_reset() {
-    check_docker
     log_warn "⚠️  Cette action va SUPPRIMER le Super Admin existant et toutes ses données liées (camps, backups)."
     read -p "Continuer ? (y/N) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         log_info "Suppression des données liées au Super Admin..."
-        docker compose exec -T db psql -U camporga -c "DELETE FROM backups WHERE triggered_by IN (SELECT id FROM users WHERE role = 'super_admin');" > /dev/null
-        docker compose exec -T db psql -U camporga -c "DELETE FROM camps WHERE organizer_id IN (SELECT id FROM users WHERE role = 'super_admin');" > /dev/null
-        docker compose exec -T db psql -U camporga -c "DELETE FROM users WHERE role = 'super_admin';" > /dev/null
+        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM backups WHERE triggered_by IN (SELECT id FROM users WHERE role = 'super_admin');" > /dev/null
+        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM camps WHERE organizer_id IN (SELECT id FROM users WHERE role = 'super_admin');" > /dev/null
+        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM users WHERE role = 'super_admin';" > /dev/null
         
         log_info "Création du nouveau Super Admin..."
-        docker compose exec backend python -c "
+        $CONTAINER_CMD exec backend python -c "
 from app.database import SessionLocal
 from app.models import UserRole
 from app.schemas.user import UserCreate
@@ -185,22 +199,19 @@ finally:
 }
 
 do_format() {
-    check_docker
     log_info "Formatage du code Python..."
-    docker compose exec backend ruff check --fix app tests
-    docker compose exec backend black app tests
+    $CONTAINER_CMD exec backend ruff check --fix app tests
+    $CONTAINER_CMD exec backend black app tests
     log_info "✅ Code formaté."
 }
 
 do_logs() {
-    check_docker
     log_info "Affichage des logs du backend (Ctrl+C pour quitter)..."
-    docker compose logs -f backend
+    $CONTAINER_CMD logs -f backend
 }
 
 do_ps() {
-    check_docker
-    docker compose ps
+    $CONTAINER_CMD ps
 }
 
 case "$1" in
@@ -216,17 +227,6 @@ case "$1" in
     ps)           do_ps ;;
     *)
         echo "Usage: $0 {start|stop|restart|cleanup|test|admin|admin-reset|format|logs|ps}"
-        echo ""
-        echo "  start        : Démarre les services et applique les migrations"
-        echo "  stop         : Arrête les services (garde les données)"
-        echo "  restart      : Redémarre le backend"
-        echo "  cleanup      : Détruit tout (conteneurs + base)"
-        echo "  test         : Lance la suite de tests avec couverture"
-        echo "  admin        : Crée le Super Admin (ou affiche celui qui existe)"
-        echo "  admin-reset  : Supprime et recrée le Super Admin"
-        echo "  format       : Formate le code Python"
-        echo "  logs         : Affiche les logs du backend"
-        echo "  ps           : Affiche l'état des services"
         exit 1
         ;;
 esac
