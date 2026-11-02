@@ -3,13 +3,15 @@ Routes d'authentification.
 
 - POST /api/auth/login    : authentifie (retourne un JWT ou un temp_token pour 2FA).
 - POST /api/auth/register : inscription publique d'un nouvel organisateur.
+- GET  /api/auth/me       : profil de l'utilisateur connecté.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import UserRole
+from app.dependencies import get_current_user
+from app.models import User, UserRole
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.schemas.user import UserCreate, UserRead
 from app.security import create_access_token
@@ -80,3 +82,12 @@ def register(
         )
     )
     return user
+
+
+# ---------------------------------------------------------------------------
+# NOUVEAU : Profil de l'utilisateur connecté
+# ---------------------------------------------------------------------------
+@router.get("/me", response_model=UserRead)
+def read_me(current_user: User = Depends(get_current_user)):
+    """Retourne le profil de l'utilisateur connecté (via JWT)."""
+    return current_user

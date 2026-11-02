@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # ==============================================================================
-# CampOrga — Script de gestion du cycle de vie (Docker ou Podman)
+# CampOrga — Script de gestion du cycle de vie (Docker/Podman + Frontend)
 # ==============================================================================
 
 set -e
@@ -64,7 +64,7 @@ wait_for_db() {
     log_info "Base de données prête."
 }
 
-# --- Commandes ---
+# --- Commandes Backend ---
 do_start() {
     check_env
     log_info "Démarrage de PostgreSQL et FastAPI..."
@@ -75,16 +75,16 @@ do_start() {
     log_info "Application des migrations Alembic..."
     $CONTAINER_CMD exec backend alembic upgrade head
 
-    log_info "✅ CampOrga est prêt !"
+    log_info "✅ CampOrga (backend) est prêt !"
     echo -e "   API    : http://localhost:8000"
     echo -e "   Docs   : http://localhost:8000/docs"
     echo -e "   Health : http://localhost:8000/health"
 }
 
 do_stop() {
-    log_info "Arrêt des services..."
+    log_info "Arrêt des services backend et DB..."
     $CONTAINER_CMD stop
-    log_info "✅ Services arrêtés."
+    log_info "✅ Services backend arrêtés."
 }
 
 do_restart() {
@@ -108,7 +108,6 @@ do_cleanup() {
 
 do_test() {
     log_info "Nettoyage de la base de données (pour un environnement de test propre)..."
-    # Supprimer toutes les données des tables (ordre important pour les FK)
     $CONTAINER_CMD exec -T db psql -U camporga -c "
         TRUNCATE TABLE payments, registrations, contact_messages, landing_pages, camp_modalities, camps, backups, users RESTART IDENTITY CASCADE;
     " > /dev/null 2>&1
@@ -128,7 +127,7 @@ db = SessionLocal()
 try:
     admin = db.query(User).filter(User.role == UserRole.SUPER_ADMIN).first()
     if admin:
-        print(f'EXISTS|{admin.email}|{admin.first_name} {admin.last_name}')
+        print(f'EXISTS|{admin.email}|{admin.first_name} {admin.last_name}|{admin.status.value}')
     else:
         print('NOT_FOUND')
 finally:
@@ -136,35 +135,36 @@ finally:
 " 2>/dev/null | grep -E "^(EXISTS|NOT_FOUND)")
 
     if [[ "$ADMIN_EXISTS" == EXISTS* ]]; then
-        IFS='|' read -r _ email full_name <<< "$ADMIN_EXISTS"
+        IFS='|' read -r _ email full_name status <<< "$ADMIN_EXISTS"
         log_warn "Un Super Admin existe déjà :"
         echo -e "   📧 Email : ${GREEN}${email}${NC}"
         echo -e "   👤 Nom   : ${full_name}"
-        
-        # NOUVEAU : On affiche les identifiants par défaut
+        echo -e "   📊 Statut : ${status}"
         echo -e "   🔑 Password par défaut : ${GREEN}ChangeMe123!${NC}"
         echo -e "   (Si vous l'avez changé, utilisez admin-reset pour le réinitialiser)"
     else
         log_info "Aucun Super Admin trouvé. Création du compte par défaut..."
         $CONTAINER_CMD exec backend python -c "
 from app.database import SessionLocal
-from app.models import UserRole
+from app.models import UserRole, UserStatus
 from app.schemas.user import UserCreate
 from app.services.user_service import UserService
 
 db = SessionLocal()
 try:
-    UserService(db).create(UserCreate(
+    user = UserService(db).create(UserCreate(
         first_name='Admin',
         last_name='CampOrga',
         email='admin@camporga.fr',
         password='ChangeMe123!',
         role=UserRole.SUPER_ADMIN,
     ))
+    user.status = UserStatus.ACTIVE
+    db.commit()
     print('✅ Super Admin créé avec succès.')
     print('   📧 Email    : admin@camporga.fr')
     print('   🔑 Password : ChangeMe123!')
-    print('   ⚠️  Changez ce mot de passe après la première connexion !')
+    print('   📊 Statut   : active')
 except Exception as e:
     print(f'❌ Erreur : {e}')
 finally:
@@ -186,22 +186,25 @@ do_admin_reset() {
         log_info "Création du nouveau Super Admin..."
         $CONTAINER_CMD exec backend python -c "
 from app.database import SessionLocal
-from app.models import UserRole
+from app.models import UserRole, UserStatus
 from app.schemas.user import UserCreate
 from app.services.user_service import UserService
 
 db = SessionLocal()
 try:
-    UserService(db).create(UserCreate(
+    user = UserService(db).create(UserCreate(
         first_name='Admin',
         last_name='CampOrga',
         email='admin@camporga.fr',
         password='ChangeMe123!',
         role=UserRole.SUPER_ADMIN,
     ))
-    print('✅ Super Admin recréé.')
+    user.status = UserStatus.ACTIVE
+    db.commit()
+    print('✅ Super Admin recréé avec succès.')
     print('   📧 Email    : admin@camporga.fr')
     print('   🔑 Password : ChangeMe123!')
+    print('   📊 Statut   : active')
 finally:
     db.close()
 "
@@ -210,6 +213,42 @@ finally:
     fi
 }
 
+# --- Commandes Frontend ---
+do_frontend() {
+    if [ ! -d "frontend" ]; then
+        log_error "Le dossier 'frontend/' n'existe pas."
+        exit 1
+    fi
+
+    if [ ! -d "frontend/node_modules" ]; then
+        log_warn "Les dépendances npm ne sont pas installées. Installation..."
+        cd frontend && npm install && cd ..
+    fi
+
+    if lsof -ti:5173 > /dev/null 2>&1; then
+        log_warn "Le port 5173 est déjà utilisé. Un serveur Vite tourne peut-être déjà."
+        log_info "Pour l'arrêter : ./camporga.sh frontend-stop"
+        exit 1
+    fi
+
+    log_info "Démarrage du frontend (Vite) sur http://localhost:5173..."
+    cd frontend
+    npm run dev
+    cd ..
+}
+
+do_frontend_stop() {
+    if ! lsof -ti:5173 > /dev/null 2>&1; then
+        log_info "Aucun serveur Vite ne tourne sur le port 5173."
+        return
+    fi
+
+    log_info "Arrêt du serveur Vite (port 5173)..."
+    lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+    log_info "✅ Frontend arrêté."
+}
+
+# --- Formatage ---
 do_format() {
     log_info "Formatage du code Python..."
     $CONTAINER_CMD exec backend ruff check --fix app tests
@@ -217,39 +256,52 @@ do_format() {
     log_info "✅ Code formaté."
 }
 
+# --- Logs ---
 do_logs() {
     log_info "Affichage des logs du backend (Ctrl+C pour quitter)..."
     $CONTAINER_CMD logs -f backend
 }
 
+# --- Statut ---
 do_ps() {
     $CONTAINER_CMD ps
+    echo ""
+    if lsof -ti:5173 > /dev/null 2>&1; then
+        log_info "Frontend : ✅ Vite tourne sur le port 5173"
+    else
+        log_info "Frontend : ⏹️  Vite n'est pas lancé"
+    fi
 }
 
+# --- Menu ---
 case "$1" in
-    start)        do_start ;;
-    stop)         do_stop ;;
-    restart)      do_restart ;;
-    cleanup)      do_cleanup ;;
-    test)         do_test ;;
-    admin)        do_admin ;;
-    admin-reset)  do_admin_reset ;;
-    format)       do_format ;;
-    logs)         do_logs ;;
-    ps)           do_ps ;;
+    start)          do_start ;;
+    stop)           do_stop ;;
+    restart)        do_restart ;;
+    cleanup)        do_cleanup ;;
+    test)           do_test ;;
+    admin)          do_admin ;;
+    admin-reset)    do_admin_reset ;;
+    frontend)       do_frontend ;;
+    frontend-stop)  do_frontend_stop ;;
+    format)         do_format ;;
+    logs)           do_logs ;;
+    ps)             do_ps ;;
     *)
-        echo "Usage: $0 {start|stop|restart|cleanup|test|admin|admin-reset|format|logs|ps}"
+        echo "Usage: $0 {start|stop|restart|cleanup|test|admin|admin-reset|frontend|frontend-stop|format|logs|ps}"
         echo ""
-        echo "  start        : Démarre les services et applique les migrations"
-        echo "  stop         : Arrête les services (garde les données)"
-        echo "  restart      : Redémarre le backend"
-        echo "  cleanup      : Détruit tout (conteneurs + base)"
-        echo "  test         : Lance la suite de tests avec couverture"
-        echo "  admin        : Crée le Super Admin (ou affiche celui qui existe)"
-        echo "  admin-reset  : Supprime et recrée le Super Admin"
-        echo "  format       : Formate le code Python"
-        echo "  logs         : Affiche les logs du backend"
-        echo "  ps           : Affiche l'état des services"
+        echo "  start          : Démarre les services backend + DB"
+        echo "  stop           : Arrête les services backend + DB"
+        echo "  restart        : Redémarre le backend"
+        echo "  cleanup        : Détruit tout (conteneurs + base)"
+        echo "  test           : Lance la suite de tests avec couverture"
+        echo "  admin          : Crée le Super Admin (ou affiche celui qui existe)"
+        echo "  admin-reset    : Supprime et recrée le Super Admin"
+        echo "  frontend       : Démarre le serveur Vite (bloquant, Ctrl+C pour quitter)"
+        echo "  frontend-stop  : Arrête le serveur Vite (port 5173)"
+        echo "  format         : Formate le code Python"
+        echo "  logs           : Affiche les logs du backend"
+        echo "  ps             : Affiche l'état des services"
         exit 1
         ;;
 esac
