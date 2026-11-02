@@ -27,8 +27,6 @@ class Camp(Base):
         index=True,
     )
     name = Column(String(150), nullable=False)
-    # `slug` sert d'identifiant lisible dans l'URL publique :
-    # camporga.fr/code-explorers plutôt qu'un UUID illisible.
     slug = Column(String(160), nullable=False, unique=True, index=True)
     description = Column(Text)
     start_date = Column(Date, nullable=False)
@@ -36,6 +34,7 @@ class Camp(Base):
     city = Column(String(100))
     age = Column(SmallInteger)
     capacity = Column(Integer, nullable=False, default=0)
+    price = Column(Integer, nullable=False, default=0)  # <-- Ajouté : prix en centimes
     status = Column(
         pg_enum(CampStatus, "camp_status"),
         nullable=False,
@@ -49,9 +48,6 @@ class Camp(Base):
     )
 
     organizer = relationship("User", back_populates="camps")
-    # `cascade="all, delete-orphan"` : supprimer un camp supprime aussi ses
-    # modalités, sa landing page et ses inscriptions — cohérent avec les
-    # ON DELETE CASCADE définis dans le schéma SQL.
     modalities = relationship(
         "CampModality", back_populates="camp", cascade="all, delete-orphan"
     )

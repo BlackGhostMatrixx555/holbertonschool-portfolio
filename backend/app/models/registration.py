@@ -28,7 +28,9 @@ class Registration(Base):
     confirmed = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
+    # Relations
     camp = relationship("Camp", back_populates="registrations")
+    payment = relationship("Payment", back_populates="registration", uselist=False)
 
     def __repr__(self) -> str:
         return f"<Registration {self.email} for camp {self.camp_id}>"

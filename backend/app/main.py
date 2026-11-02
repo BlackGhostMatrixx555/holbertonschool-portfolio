@@ -4,12 +4,12 @@ Point d'entrée de l'API CampOrga.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import auth, backups, camps, chat, two_factor, users, verification
+from app.routes import auth, backups, camps, chat, payments, two_factor, users, verification
 
 app = FastAPI(
     title="CampOrga API",
     description="API de gestion de summer camps de code & d'informatique",
-    version="0.6.0",
+    version="0.7.0",
 )
 
 app.add_middleware(
@@ -28,6 +28,7 @@ app.include_router(backups.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(two_factor.router, prefix="/api")
 app.include_router(verification.router, prefix="/api")
+app.include_router(payments.router, prefix="/api")
 
 
 @app.get("/health", tags=["health"])

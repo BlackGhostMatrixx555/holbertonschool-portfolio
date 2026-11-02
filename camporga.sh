@@ -10,6 +10,8 @@ set -e
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
 NC='\033[0m'
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
@@ -105,7 +107,14 @@ do_cleanup() {
 }
 
 do_test() {
-    log_info "Lancement de la suite de tests (96 tests attendus)..."
+    log_info "Nettoyage de la base de données (pour un environnement de test propre)..."
+    # Supprimer toutes les données des tables (ordre important pour les FK)
+    $CONTAINER_CMD exec -T db psql -U camporga -c "
+        TRUNCATE TABLE payments, registrations, contact_messages, landing_pages, camp_modalities, camps, backups, users RESTART IDENTITY CASCADE;
+    " > /dev/null 2>&1
+    log_info "Base nettoyée."
+    
+    log_info "Lancement de la suite de tests..."
     $CONTAINER_CMD exec backend pytest --cov=app --cov-report=term-missing
 }
 
@@ -131,7 +140,10 @@ finally:
         log_warn "Un Super Admin existe déjà :"
         echo -e "   📧 Email : ${GREEN}${email}${NC}"
         echo -e "   👤 Nom   : ${full_name}"
-        log_info "Pour changer les identifiants, utilisez : ./camporga.sh admin-reset"
+        
+        # NOUVEAU : On affiche les identifiants par défaut
+        echo -e "   🔑 Password par défaut : ${GREEN}ChangeMe123!${NC}"
+        echo -e "   (Si vous l'avez changé, utilisez admin-reset pour le réinitialiser)"
     else
         log_info "Aucun Super Admin trouvé. Création du compte par défaut..."
         $CONTAINER_CMD exec backend python -c "
@@ -227,6 +239,17 @@ case "$1" in
     ps)           do_ps ;;
     *)
         echo "Usage: $0 {start|stop|restart|cleanup|test|admin|admin-reset|format|logs|ps}"
+        echo ""
+        echo "  start        : Démarre les services et applique les migrations"
+        echo "  stop         : Arrête les services (garde les données)"
+        echo "  restart      : Redémarre le backend"
+        echo "  cleanup      : Détruit tout (conteneurs + base)"
+        echo "  test         : Lance la suite de tests avec couverture"
+        echo "  admin        : Crée le Super Admin (ou affiche celui qui existe)"
+        echo "  admin-reset  : Supprime et recrée le Super Admin"
+        echo "  format       : Formate le code Python"
+        echo "  logs         : Affiche les logs du backend"
+        echo "  ps           : Affiche l'état des services"
         exit 1
         ;;
 esac

@@ -1,14 +1,8 @@
 """
 Tests pour l'authentification JWT.
-
-Couvre :
-- POST /api/auth/login : succès, mauvais mot de passe, email inconnu, compte désactivé.
-- POST /api/auth/register : succès, email dupliqué, mot de passe court.
-- Validation du token : token manquant, token invalide, token expiré.
-- GET /api/users : accès autorisé (super_admin), refusé (autres rôles), sans token.
-- DELETE /api/users/me : succès (SEM), refusé pour super admin (éternel), sans token.
 """
 from datetime import timedelta
+import uuid
 
 from app.models import User, UserRole, UserStatus
 from app.security import create_access_token, hash_password
@@ -76,17 +70,18 @@ def test_login_disabled_account(client, db_session):
 # ---------------------------------------------------------------------------
 def test_register_success(client):
     """POST /api/auth/register → 201 + user créé avec rôle SEM."""
+    unique_email = f"jean.{uuid.uuid4().hex[:8]}@camporga.test"
     payload = {
         "first_name": "Jean",
         "last_name": "Dupont",
-        "email": "jean.dupont@camporga.test",
+        "email": unique_email,
         "password": "MotDePasse123!",
     }
     response = client.post("/api/auth/register", json=payload)
     assert response.status_code == 201
 
     body = response.json()
-    assert body["email"] == "jean.dupont@camporga.test"
+    assert body["email"] == unique_email
     assert body["role"] == "sem"
     assert "password" not in body
     assert "password_hash" not in body
@@ -191,6 +186,7 @@ def test_users_route_allowed_for_super_admin(client, auth_headers):
     response = client.get("/api/users", headers=auth_headers)
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+    assert all("password_hash" not in user for user in response.json())
 
 
 # ---------------------------------------------------------------------------
