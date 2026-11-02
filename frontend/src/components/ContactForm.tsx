@@ -8,7 +8,7 @@ import { Alert, Button, Field, inputClass } from './ui'
 
 const schema = z.object({
   name: z.string().trim().min(1, 'Votre nom est obligatoire.').max(100),
-  email: z.string().trim().email('Adresse email invalide.'),
+  email: z.string().trim().pipe(z.email('Adresse email invalide.')),
   message: z.string().trim().min(1, 'Le message est vide.').max(2000, '2000 caractères maximum.'),
 })
 

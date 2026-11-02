@@ -6,7 +6,7 @@
 import { z } from 'zod'
 
 const ageField = z
-  .number({ invalid_type_error: 'Indiquez un âge.' })
+  .number({ error: 'Indiquez un âge.' })
   .int()
   .min(0, 'Âge invalide.')
   .max(99, 'Âge invalide.')
@@ -21,7 +21,7 @@ export const campSchema = z
     min_age: ageField,
     max_age: ageField,
     capacity: z
-      .number({ invalid_type_error: 'Indiquez une capacité.' })
+      .number({ error: 'Indiquez une capacité.' })
       .int()
       .min(1, 'Au moins 1 place.')
       .max(10000),

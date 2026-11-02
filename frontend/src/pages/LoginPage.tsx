@@ -9,7 +9,7 @@ import { Logo } from '../components/Logo'
 import { Alert, Button, Field, inputClass } from '../components/ui'
 
 const schema = z.object({
-  email: z.string().trim().min(1, "L'email est obligatoire.").email('Adresse email invalide.'),
+  email: z.string().trim().min(1, "L'email est obligatoire.").pipe(z.email('Adresse email invalide.')),
   password: z.string().min(1, 'Le mot de passe est obligatoire.'),
 })
 

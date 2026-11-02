@@ -15,7 +15,7 @@ import {
   setAttendance,
   setMessageStatus,
 } from '../../api/endpoints'
-import type { Camp, MessageStatus, Registration } from '../../api/types'
+import type { Camp, MessageStatus } from '../../api/types'
 import { Tabs } from '../../components/Tabs'
 import { Alert, Button, Card, EmptyState, Field, inputClass, LinkButton, PageHeader, Spinner, StatusBadge } from '../../components/ui'
 import { formatDateTime, formatRange, intentLabels, messageStatusLabels, seasonLabels } from '../../lib/format'
@@ -30,22 +30,15 @@ function RegistrationsTab({ camp }: { camp: Camp }) {
     queryFn: () => fetchRegistrations(camp.id),
     staleTime: 0, // toujours recharger : de nouvelles inscriptions arrivent à tout moment
   })
-  const key = ['registrations', camp.id]
-  // Mise à jour optimiste : la case change tout de suite à l'écran,
-  // puis revient en arrière si l'API refuse la modification.
+  // Affichage optimiste : pendant l'enregistrement, la case montre déjà la nouvelle
+  // valeur (attendance.variables). Si l'API refuse, elle revient à la valeur du serveur.
+  // onSettled renvoie une promesse : la mutation reste "en cours" jusqu'au rechargement
+  // de la liste, ce qui évite tout clignotement.
   const attendance = useMutation({
     mutationFn: ({ id, confirmed }: { id: string; confirmed: boolean }) => setAttendance(id, confirmed),
-    onMutate: async ({ id, confirmed }) => {
-      await queryClient.cancelQueries({ queryKey: key })
-      const previous = queryClient.getQueryData<Registration[]>(key)
-      queryClient.setQueryData<Registration[]>(key, (list) =>
-        list?.map((registration) => (registration.id === id ? { ...registration, confirmed } : registration)),
-      )
-      return { previous }
-    },
-    onError: (_error, _variables, context) => queryClient.setQueryData(key, context?.previous),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['registrations', camp.id] }),
   })
+  const pending = attendance.isPending ? attendance.variables : undefined
 
   if (registrations.isPending) return <Spinner />
   if (registrations.isError) return <Alert>{registrations.error.message}</Alert>
@@ -90,7 +83,7 @@ function RegistrationsTab({ camp }: { camp: Camp }) {
                   <label className="inline-flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={registration.confirmed}
+                      checked={pending?.id === registration.id ? pending.confirmed : registration.confirmed}
                       onChange={(event) => attendance.mutate({ id: registration.id, confirmed: event.target.checked })}
                       className="h-5 w-5 accent-coral-600"
                     />

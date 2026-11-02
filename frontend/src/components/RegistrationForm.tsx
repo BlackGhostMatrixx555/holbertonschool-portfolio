@@ -16,9 +16,9 @@ import { Alert, Button, Field, inputClass } from './ui'
 const schema = z.object({
   first_name: z.string().trim().min(1, 'Le prénom est obligatoire.').max(100),
   last_name: z.string().trim().min(1, 'Le nom est obligatoire.').max(100),
-  email: z.string().trim().min(1, "L'email est obligatoire.").email('Adresse email invalide.'),
+  email: z.string().trim().min(1, "L'email est obligatoire.").pipe(z.email('Adresse email invalide.')),
   comment: z.string().max(1000, '1000 caractères maximum.').optional(),
-  confirm: z.literal(true, { errorMap: () => ({ message: 'Merci de confirmer votre participation.' }) }),
+  confirm: z.literal(true, { error: 'Merci de confirmer votre participation.' }),
 })
 
 type FormValues = z.input<typeof schema>

@@ -14,7 +14,7 @@ const roles = Object.keys(roleLabels) as UserRole[]
 const schema = z.object({
   first_name: z.string().trim().min(1, 'Prénom obligatoire.').max(100),
   last_name: z.string().trim().min(1, 'Nom obligatoire.').max(100),
-  email: z.string().trim().email('Adresse email invalide.'),
+  email: z.string().trim().pipe(z.email('Adresse email invalide.')),
   // 12 caractères minimum, comme l'API (recommandation ANSSI).
   password: z.string().min(12, '12 caractères minimum.').max(128),
   role: z.enum(roles as [UserRole, ...UserRole[]]),
