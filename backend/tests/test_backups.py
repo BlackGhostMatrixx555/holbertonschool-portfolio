@@ -32,3 +32,36 @@ def test_non_admin_cannot_export_backup(client, db_session):
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 403
+
+# ---- Export SQL (pg_dump simulé : le test ne dépend pas de l'outil installé) ----
+
+def test_super_admin_can_export_sql_dump(client, auth_headers, monkeypatch):
+    import subprocess
+
+    def fake_run(command, **kwargs):
+        # pg_dump écrit dans le fichier passé après --file
+        path = command[command.index("--file") + 1]
+        with open(path, "w") as dump:
+            dump.write("-- PostgreSQL database dump\nCREATE TABLE camps ();\n")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr("app.services.backup_service.subprocess.run", fake_run)
+    response = client.get("/api/admin/backups?format=sql", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert "CREATE TABLE camps" in response.text
+
+
+def test_sql_dump_failure_returns_503(client, auth_headers, monkeypatch):
+    import subprocess
+
+    def failing_run(command, **kwargs):
+        raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr("app.services.backup_service.subprocess.run", failing_run)
+    response = client.get("/api/admin/backups?format=sql", headers=auth_headers)
+    assert response.status_code == 503
+
+
+def test_unknown_backup_format_is_rejected(client, auth_headers):
+    assert client.get("/api/admin/backups?format=xml", headers=auth_headers).status_code == 422
