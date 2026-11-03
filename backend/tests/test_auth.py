@@ -1,11 +1,15 @@
 """
 Tests pour l'authentification JWT.
+
+Couvre :
+- POST /api/auth/login : succès, mauvais mot de passe, email inconnu, compte désactivé.
+- Validation du token : token manquant, token invalide, token expiré.
+- GET /api/users : accès autorisé (super_admin), refusé (autres rôles), sans token.
 """
 from datetime import timedelta
-import uuid
 
 from app.models import User, UserRole, UserStatus
-from app.security import create_access_token, hash_password
+from app.core.security import create_access_token, hash_password
 
 
 # ---------------------------------------------------------------------------
@@ -63,53 +67,6 @@ def test_login_disabled_account(client, db_session):
         json={"email": "disabled@camporga.test", "password": "motdepasse123"},
     )
     assert response.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# POST /api/auth/register
-# ---------------------------------------------------------------------------
-def test_register_success(client):
-    """POST /api/auth/register → 201 + user créé avec rôle SEM."""
-    unique_email = f"jean.{uuid.uuid4().hex[:8]}@camporga.test"
-    payload = {
-        "first_name": "Jean",
-        "last_name": "Dupont",
-        "email": unique_email,
-        "password": "MotDePasse123!",
-    }
-    response = client.post("/api/auth/register", json=payload)
-    assert response.status_code == 201
-
-    body = response.json()
-    assert body["email"] == unique_email
-    assert body["role"] == "sem"
-    assert "password" not in body
-    assert "password_hash" not in body
-
-
-def test_register_duplicate_email(client, test_user):
-    """POST /api/auth/register avec un email déjà pris → 409."""
-    payload = {
-        "first_name": "Tété",
-        "last_name": "Dufrénoy",
-        "email": test_user.email,
-        "password": "MotDePasse123!",
-    }
-    response = client.post("/api/auth/register", json=payload)
-    assert response.status_code == 409
-    assert "existe déjà" in response.json()["detail"]
-
-
-def test_register_short_password(client):
-    """POST /api/auth/register avec mot de passe trop court → 422."""
-    payload = {
-        "first_name": "Jean",
-        "last_name": "Dupont",
-        "email": "jean2@camporga.test",
-        "password": "court",
-    }
-    response = client.post("/api/auth/register", json=payload)
-    assert response.status_code == 422
 
 
 # ---------------------------------------------------------------------------
@@ -189,45 +146,44 @@ def test_users_route_allowed_for_super_admin(client, auth_headers):
     assert all("password_hash" not in user for user in response.json())
 
 
-# ---------------------------------------------------------------------------
-# DELETE /api/users/me
-# ---------------------------------------------------------------------------
-def test_delete_my_account(client, db_session):
-    """DELETE /api/users/me avec un compte non-admin → 204 + compte supprimé."""
+def test_super_admin_can_create_user_without_exposing_password(client, auth_headers):
+    response = client.post(
+        "/api/users",
+        headers=auth_headers,
+        json={
+            "email": "new.organizer@example.com",
+            "password": "a-long-unique-password",
+            "first_name": "New",
+            "last_name": "Organizer",
+            "role": "organizer",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["email"] == "new.organizer@example.com"
+    assert "password_hash" not in response.json()
+
+
+def test_non_admin_cannot_create_user(client, db_session):
     sem_user = User(
-        id=None,
         first_name="SEM",
         last_name="User",
-        email="sem-delete@camporga.test",
+        email="sem-create@example.test",
         password_hash=hash_password("motdepasse123"),
         role=UserRole.SEM,
         status=UserStatus.ACTIVE,
     )
     db_session.add(sem_user)
     db_session.commit()
-    db_session.refresh(sem_user)
-
     token = create_access_token(subject=str(sem_user.id))
-    headers = {"Authorization": f"Bearer {token}"}
 
-    response = client.delete("/api/users/me", headers=headers)
-    assert response.status_code == 204
-
-    login_response = client.post(
-        "/api/auth/login",
-        json={"email": "sem-delete@camporga.test", "password": "motdepasse123"},
+    response = client.post(
+        "/api/users",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "email": "not-allowed@example.test",
+            "password": "a-long-unique-password",
+            "first_name": "No",
+            "last_name": "Access",
+        },
     )
-    assert login_response.status_code == 401
-
-
-def test_delete_my_account_forbidden_for_super_admin(client, auth_headers):
-    """DELETE /api/users/me avec un super admin → 403 (éternel)."""
-    response = client.delete("/api/users/me", headers=auth_headers)
     assert response.status_code == 403
-    assert "éternel" in response.json()["detail"].lower()
-
-
-def test_delete_my_account_without_auth(client):
-    """DELETE /api/users/me sans token → 401."""
-    response = client.delete("/api/users/me")
-    assert response.status_code == 401

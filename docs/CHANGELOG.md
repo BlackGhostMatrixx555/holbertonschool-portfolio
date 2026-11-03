@@ -7,6 +7,58 @@ et le projet respecte le [Semantic Versioning](https://semver.org/lang/fr/).
 
 ---
 
+## [2.0.0] — 2026-11-03 — Fusion des branches `collins` et `tete-work`
+
+Une seule version du projet : le back-end en couches et le front-end de `collins`,
+enrichis des fonctionnalités de `tete-work`.
+
+### Ajouté (repris de `tete-work`, réécrit dans la structure `api/` + `services/` + `schemas/`)
+- **Inscription publique** des organisateurs (`POST /api/auth/register`) — compte créé
+  inactif, à valider par le super admin (gestion des accès prévue par le cahier des charges).
+- **Double authentification TOTP** : QR code, activation, désactivation, connexion en 2 étapes
+  (`/api/auth/2fa/*`).
+- **Vérification email / SMS** (envoi simulé) : codes stockés dans MongoDB, sous forme
+  d'empreinte, avec expiration automatique (index TTL) et nombre d'essais limité.
+- **Historique des sauvegardes** : table `backups`, `POST /api/backups`, `GET /api/backups`,
+  `GET /api/backups/{id}/download`.
+- **Mon compte** (`PATCH /api/users/me`, `DELETE /api/users/me`) et suppression d'un compte
+  par le super admin (`DELETE /api/users/{id}`).
+- Rôle **directeur technique** (`dt`).
+- Front-end : pages `/inscription` et `/espace/compte`, étape « code à 6 chiffres » à la
+  connexion, demandes d'accès en attente dans Utilisateurs, historique dans Sauvegardes.
+
+### Modifié
+- **Camps** : une seule colonne `age` (âge minimum, vide = tous âges) remplace
+  `min_age` / `max_age`. Migration Alembic `e7a1c3f90b21` avec conversion des données.
+- **`camporga.sh`** : adapté à la fusion (`.env` à la racine généré avec des secrets
+  aléatoires ; `test` utilise la base `camporga_test` au lieu de vider la base de dev).
+
+### Retiré
+- **Paiement** : non repris, hors périmètre du MVP selon le cahier des charges
+  (reste disponible sur la branche `tete-work`).
+
+### Sécurité
+- Le jeton temporaire 2FA ne peut plus servir de jeton de session (portée `scope` dans le JWT).
+- La désactivation de la 2FA exige un code valide ; une 2FA active ne peut plus être écrasée.
+- Codes de vérification générés avec `secrets`, code de test renvoyé uniquement en développement.
+- Le super admin ne peut plus modifier son propre rôle.
+- Suppression d'un compte refusée tant qu'il gère des camps ou a réalisé des sauvegardes.
+- CORS : en-tête `Content-Disposition` exposé (nom réel des fichiers téléchargés).
+
+### Documentation
+- `database-schema.sql` réécrit d'après la base migrée (téléphone, 2FA, `status` des messages,
+  enums actuels) avec la description des collections MongoDB.
+- `diagram_database.png` / `database-schema.pdf` régénérés (source Mermaid `diagram_database.mmd`) :
+  ajout du `status` des messages et des collections MongoDB.
+- README (FR/EN), index `docs/README.md` et `project-presentation.md` mis à jour.
+- `camporga.sh admin-reset` : suppression des données liées aux camps avant les camps.
+
+### Testé
+- Back-end : 127 tests, 97 % de couverture. Front-end : 37 tests.
+- Scénario navigateur complet et audit axe-core : 0 violation WCAG 2.1 AA.
+
+---
+
 ## [1.7.0] — 2026-11-02 — Outils d'ingénierie & Documentation
 
 ### Ajouté

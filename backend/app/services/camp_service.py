@@ -1,125 +1,131 @@
-"""
-Service métier pour les camps.
-
-La couche service contient la logique métier (génération de slug, création
-des modalités, etc.). Les routers ne font que :
-  - valider l'entrée (via Pydantic),
-  - vérifier les droits,
-  - appeler le service,
-  - renvoyer la réponse.
-
-Avantage : la logique est testable sans passer par HTTP.
-"""
+"""Création, consultation, modification et suppression des camps."""
 import re
 import unicodedata
-import uuid
+from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from app.models import Camp, CampModality
-from app.schemas.camp import CampCreate, CampUpdate
+from app.core.exceptions import NotFoundError, ValidationError
+from app.models import Camp, CampModality, CampStatus, User
+from app.schemas.camp import CampInput
+from app.services.permissions import ensure_can_manage_camp, is_super_admin
 
-
-def slugify(name: str) -> str:
-    """Transforme un nom de camp en slug lisible pour l'URL.
-
-    Exemple : "Code Explorers — Été 2025" -> "code-explorers-ete-2025"
-    """
-    # 1. Décompose les caractères accentués (é -> e + accent) et retire les accents.
-    normalized = unicodedata.normalize("NFKD", name)
-    ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
-    # 2. Minuscules, remplace tout ce qui n'est pas alphanumérique par un tiret.
-    slug = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_only).strip("-").lower()
-    return slug or "camp"
+# Relations chargées en une seule fois avec chaque camp : évite le problème
+# "N+1 requêtes" (une requête SQL par camp pour lire ses modalités).
+_CAMP_RELATIONS = (
+    selectinload(Camp.modalities),
+    selectinload(Camp.landing_page),
+    selectinload(Camp.registrations),
+)
 
 
-class CampService:
-    """Regroupe les opérations métier sur les camps."""
+def slugify(value: str) -> str:
+    """'Code Explorers — Été 2026' -> 'code-explorers-ete-2026'."""
+    normalized = unicodedata.normalize("NFKD", value)  # sépare lettres et accents
+    ascii_value = normalized.encode("ascii", "ignore").decode("ascii").lower()
+    return re.sub(r"[^a-z0-9]+", "-", ascii_value).strip("-") or "camp"
 
-    def __init__(self, db: Session):
-        self.db = db
 
-    # ------------------------------------------------------------------
-    # Slug
-    # ------------------------------------------------------------------
-    def _generate_unique_slug(self, name: str) -> str:
-        """Génère un slug unique. Ajoute -2, -3, ... en cas de collision."""
-        base = slugify(name)
-        slug = base
-        counter = 2
-        while self.db.query(Camp).filter(Camp.slug == slug).first() is not None:
-            slug = f"{base}-{counter}"
-            counter += 1
-        return slug
+def _unique_slug(db: Session, name: str) -> str:
+    """Ajoute -2, -3... si le slug existe déjà."""
+    base_slug = slugify(name)
+    slug, suffix = base_slug, 2
+    while db.query(Camp.id).filter(Camp.slug == slug).first() is not None:
+        slug = f"{base_slug}-{suffix}"
+        suffix += 1
+    return slug
 
-    # ------------------------------------------------------------------
-    # Création
-    # ------------------------------------------------------------------
-    def create(self, data: CampCreate, organizer_id: uuid.UUID) -> Camp:
-        """Crée un camp et ses modalités associées."""
-        camp = Camp(
-            organizer_id=organizer_id,
-            name=data.name,
-            slug=self._generate_unique_slug(data.name),
-            description=data.description,
-            start_date=data.start_date,
-            end_date=data.end_date,
-            city=data.city,
-            age=data.age,
-            capacity=data.capacity,
-            status=data.status,
-        )
-        for modality in data.modalities:
-            camp.modalities.append(
-                CampModality(type=modality.type, label=modality.label)
-            )
 
-        self.db.add(camp)
-        self.db.commit()
-        self.db.refresh(camp)
-        return camp
+def create_camp(db: Session, payload: CampInput, organizer: User) -> Camp:
+    data = payload.model_dump(exclude_unset=True)
+    if not data.get("name") or not data.get("start_date") or not data.get("end_date") or not data.get("capacity"):
+        raise ValidationError("name, dates et capacity sont obligatoires.")
 
-    # ------------------------------------------------------------------
-    # Lecture
-    # ------------------------------------------------------------------
-    def list(
-        self,
-        status: str | None = None,
-        organizer_id: uuid.UUID | None = None,
-    ) -> list[Camp]:
-        """Liste les camps, avec filtres optionnels."""
-        query = self.db.query(Camp)
-        if status is not None:
-            query = query.filter(Camp.status == status)
-        if organizer_id is not None:
-            query = query.filter(Camp.organizer_id == organizer_id)
-        return query.order_by(Camp.created_at.desc()).all()
+    camp = Camp(
+        organizer_id=organizer.id,
+        name=data["name"],
+        slug=_unique_slug(db, data["name"]),
+        description=data.get("description"),
+        start_date=data["start_date"],
+        end_date=data["end_date"],
+        city=data.get("city") or "",
+        age=data.get("age"),
+        capacity=data["capacity"],
+        status=data.get("status") or CampStatus.DRAFT,
+    )
+    for modality in data.get("modalities") or []:
+        camp.modalities.append(CampModality(**modality))
 
-    def get_by_slug(self, slug: str) -> Camp | None:
-        """Récupère un camp par son slug (utilisé par la route publique)."""
-        return self.db.query(Camp).filter(Camp.slug == slug).first()
+    db.add(camp)
+    db.commit()
+    db.refresh(camp)
+    return camp
 
-    def get_by_id(self, camp_id: uuid.UUID) -> Camp | None:
-        """Récupère un camp par son UUID (utilisé par PATCH et DELETE)."""
-        return self.db.query(Camp).filter(Camp.id == camp_id).first()
 
-    # ------------------------------------------------------------------
-    # Mise à jour
-    # ------------------------------------------------------------------
-    def update(self, camp: Camp, data: CampUpdate) -> Camp:
-        """Met à jour les champs fournis (les autres restent inchangés)."""
-        for field, value in data.model_dump(exclude_unset=True).items():
-            setattr(camp, field, value)
-        self.db.commit()
-        self.db.refresh(camp)
-        return camp
+def list_public_camps(db: Session) -> list[Camp]:
+    """Camps publiés, du plus proche au plus lointain."""
+    return (
+        db.query(Camp)
+        .options(*_CAMP_RELATIONS)
+        .filter(Camp.status == CampStatus.PUBLISHED)
+        .order_by(Camp.start_date)
+        .all()
+    )
 
-    # ------------------------------------------------------------------
-    # Suppression
-    # ------------------------------------------------------------------
-    def delete(self, camp: Camp) -> None:
-        """Supprime un camp. Les modalités, la landing page et les inscriptions
-        liées sont supprimées en cascade grâce à `cascade="all, delete-orphan"`.
-        """
-        self.db.delete(camp)
-        self.db.commit()
+
+def list_camps_for(db: Session, user: User, status: CampStatus | None = None) -> list[Camp]:
+    """Le super admin voit tous les camps ; un organisateur, seulement les siens."""
+    query = db.query(Camp).options(*_CAMP_RELATIONS)
+    if not is_super_admin(user):
+        query = query.filter(Camp.organizer_id == user.id)
+    if status is not None:
+        query = query.filter(Camp.status == status)
+    return query.order_by(Camp.start_date).all()
+
+
+def get_public_camp(db: Session, slug: str) -> Camp:
+    camp = db.query(Camp).options(*_CAMP_RELATIONS).filter(Camp.slug == slug).first()
+    # Un brouillon répond 404 et non 403 : on ne révèle pas qu'il existe.
+    if camp is None or camp.status != CampStatus.PUBLISHED:
+        raise NotFoundError("Camp introuvable.")
+    return camp
+
+
+def get_managed_camp(db: Session, camp_id: UUID, user: User) -> Camp:
+    """Retourne un camp que l'utilisateur a le droit de gérer."""
+    camp = db.query(Camp).options(*_CAMP_RELATIONS).filter(Camp.id == camp_id).first()
+    if camp is None:
+        raise NotFoundError("Camp introuvable.")
+    ensure_can_manage_camp(camp, user)
+    return camp
+
+
+def update_camp(db: Session, camp_id: UUID, payload: CampInput, user: User) -> Camp:
+    camp = get_managed_camp(db, camp_id, user)
+    data = payload.model_dump(exclude_unset=True)
+
+    # Mise à jour partielle : on contrôle la cohérence avec les valeurs existantes.
+    start_date = data.get("start_date", camp.start_date)
+    end_date = data.get("end_date", camp.end_date)
+    if end_date < start_date:
+        raise ValidationError("end_date doit être supérieure ou égale à start_date")
+    if "capacity" in data and data["capacity"] < camp.registrations_count:
+        raise ValidationError("La capacité ne peut pas être inférieure au nombre d'inscrits.")
+
+    for key in ("name", "description", "start_date", "end_date", "city", "age", "capacity", "status"):
+        if key in data:
+            setattr(camp, key, data[key])
+    if "modalities" in data:
+        camp.modalities.clear()
+        for modality in data["modalities"] or []:
+            camp.modalities.append(CampModality(**modality))
+
+    db.commit()
+    db.refresh(camp)
+    return camp
+
+
+def delete_camp(db: Session, camp_id: UUID, user: User) -> None:
+    camp = get_managed_camp(db, camp_id, user)
+    db.delete(camp)  # supprime aussi inscriptions, modalités... (cascade)
+    db.commit()

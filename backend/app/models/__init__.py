@@ -1,21 +1,7 @@
-"""
-Regroupe tous les modèles.
-"""
-from app.models.enums import (
-    UserRole, UserStatus, CampStatus, ModalityType,
-    SeasonTheme, ContactChannel, BackupFormat,
-)
-from app.models.user import User
-from app.models.camp import Camp, CampModality
-from app.models.landing_page import LandingPage
+from app.models.user import User, UserRole, UserStatus
+from app.models.camp import Camp, CampStatus
 from app.models.registration import Registration
-from app.models.contact_backup import ContactMessage, Backup
-from app.models.payment import Payment, PaymentStatus
-
-__all__ = [
-    "UserRole", "UserStatus", "CampStatus", "ModalityType",
-    "SeasonTheme", "ContactChannel", "BackupFormat",
-    "User", "Camp", "CampModality", "LandingPage",
-    "Registration", "ContactMessage", "Backup",
-    "Payment", "PaymentStatus",
-]
+from app.models.camp_modality import CampModality, ModalityType
+from app.models.landing_page import LandingPage, SeasonTheme
+from app.models.contact_message import ContactChannel, ContactMessage, MessageStatus
+from app.models.backup import Backup, BackupFormat

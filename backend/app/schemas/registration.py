@@ -1,32 +1,31 @@
-"""
-Schémas Pydantic pour les inscriptions.
-"""
-import uuid
+"""Schémas des inscriptions aux camps."""
 from datetime import datetime
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from app.schemas.types import DevEmailStr as EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class RegistrationCreate(BaseModel):
-    """Données envoyées par un visiteur pour s'inscrire à un camp."""
-    first_name: str = Field(..., min_length=1, max_length=100)
-    last_name: str = Field(..., min_length=1, max_length=100)
+    """Formulaire public d'inscription (cahier des charges, module 4.4)."""
+
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    comment: str | None = None
-    confirmed: bool = False
+    comment: str | None = Field(default=None, max_length=1000)
 
 
-class RegistrationRead(BaseModel):
-    """Inscription telle que renvoyée par l'API (vue admin/organisateur)."""
+class AttendanceUpdate(BaseModel):
+    confirmed: bool
+
+
+class RegistrationView(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
-    camp_id: uuid.UUID
+    id: UUID
+    camp_id: UUID
     first_name: str
     last_name: str
     email: EmailStr
     comment: str | None
     confirmed: bool
-    created_at: datetime
+    created_at: datetime | None = None

@@ -1,85 +1,90 @@
 """
-Service métier pour la double authentification (TOTP).
+Double authentification par code TOTP (apport de tete-work).
+
+TOTP = "Time-based One-Time Password" (RFC 6238) : le serveur et l'application
+du téléphone (Google Authenticator, Authy...) partagent un secret, et calculent
+chacun un code à 6 chiffres qui change toutes les 30 secondes.
+
+Déroulé :
+1. setup  : on génère un secret et un QR code ; la 2FA n'est pas encore active.
+2. enable : l'utilisateur saisit un premier code, preuve qu'il a bien scanné.
+3. login  : mot de passe -> jeton temporaire -> code -> jeton de session.
+4. disable: exige un code valide (sinon, un vol de session suffirait à la retirer).
 """
 import base64
 import io
-import uuid
-from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 import pyotp
 import qrcode
-from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from app.config import settings
-from app.models import User
+from app.core.exceptions import ConflictError, ValidationError
+from app.core.security import TWO_FACTOR_SCOPE, decode_token
+from app.models import User, UserStatus
+
+ISSUER = "CampOrga"
 
 
-class TwoFactorService:
-    def __init__(self, db: Session):
-        self.db = db
+class InvalidTwoFactorError(Exception):
+    """Jeton temporaire ou code refusé lors de la connexion (traduit en 401)."""
 
-    def generate_secret(self, user: User) -> dict:
-        """Génère un secret TOTP, un QR code et stocke le secret en attente."""
-        secret = pyotp.random_base32()
-        totp = pyotp.TOTP(secret)
-        otpauth_url = totp.provisioning_uri(name=user.email, issuer_name="CampOrga")
 
-        qr = qrcode.make(otpauth_url)
-        buf = io.BytesIO()
-        qr.save(buf, format="PNG")
-        qr_base64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-
-        user.totp_secret = secret
-        user.is_2fa_enabled = False
-        self.db.commit()
-        self.db.refresh(user)
-
-        return {
-            "secret": secret,
-            "otpauth_url": otpauth_url,
-            "qr_code_base64": f"data:image/png;base64,{qr_base64}",
-        }
-
-    def verify_code(self, user: User, code: str) -> bool:
-        """Vérifie qu'un code TOTP est valide."""
-        if not user.totp_secret:
-            return False
-        totp = pyotp.TOTP(user.totp_secret)
-        return totp.verify(code, valid_window=1)
-
-    def enable_2fa(self, user: User, code: str) -> bool:
-        """Active la 2FA si le code fourni est valide."""
-        if self.verify_code(user, code):
-            user.is_2fa_enabled = True
-            self.db.commit()
-            return True
+def _verify(user: User, code: str) -> bool:
+    if not user.totp_secret:
         return False
+    # valid_window=1 : on accepte aussi le code précédent/suivant (horloges décalées).
+    return pyotp.TOTP(user.totp_secret).verify(code, valid_window=1)
 
-    def disable_2fa(self, user: User):
-        """Désactive la 2FA (supprime le secret)."""
-        user.is_2fa_enabled = False
-        user.totp_secret = None
-        self.db.commit()
 
-    def create_temp_token(self, user: User) -> str:
-        """Crée un token temporaire (5 min) pour la validation 2FA."""
-        now = datetime.now(timezone.utc)
-        payload = {
-            "sub": str(user.id),
-            "scope": "2fa_pending",
-            "iat": now,
-            "exp": now + timedelta(minutes=5),
-        }
-        return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+def setup(db: Session, user: User) -> dict:
+    if user.is_2fa_enabled:
+        # Sinon, un nouvel appel écraserait le secret d'une 2FA déjà active.
+        raise ConflictError("La double authentification est déjà activée.")
+    secret = pyotp.random_base32()
+    otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=ISSUER)
 
-    def verify_temp_token(self, token: str) -> User | None:
-        """Décode un token temporaire et renvoie l'utilisateur associé."""
-        try:
-            payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
-            if payload.get("scope") != "2fa_pending":
-                return None
-            user_id = payload.get("sub")
-            return self.db.query(User).filter(User.id == uuid.UUID(user_id)).first()
-        except (JWTError, ValueError):
-            return None
+    image = qrcode.make(otpauth_url)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+
+    user.totp_secret = secret
+    db.commit()
+    return {
+        "secret": secret,
+        "otpauth_url": otpauth_url,
+        "qr_code_base64": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode(),
+    }
+
+
+def enable(db: Session, user: User, code: str) -> None:
+    if user.is_2fa_enabled:
+        raise ConflictError("La double authentification est déjà activée.")
+    if not _verify(user, code):
+        raise ValidationError("Code de vérification invalide.")
+    user.is_2fa_enabled = True
+    db.commit()
+
+
+def disable(db: Session, user: User, code: str) -> None:
+    if not user.is_2fa_enabled:
+        raise ConflictError("La double authentification n'est pas activée.")
+    if not _verify(user, code):
+        raise ValidationError("Code de vérification invalide.")
+    user.is_2fa_enabled = False
+    user.totp_secret = None
+    db.commit()
+
+
+def verify_login(db: Session, temp_token: str, code: str) -> User:
+    """Étape 2 de la connexion : vérifie le jeton temporaire puis le code."""
+    subject = decode_token(temp_token, TWO_FACTOR_SCOPE)
+    try:
+        user = db.get(User, UUID(subject or ""))
+    except ValueError:
+        user = None
+    if user is None or user.status != UserStatus.ACTIVE or not user.is_2fa_enabled:
+        raise InvalidTwoFactorError("Session de connexion expirée, recommencez.")
+    if not _verify(user, code):
+        raise InvalidTwoFactorError("Code de vérification invalide.")
+    return user

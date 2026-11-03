@@ -1,159 +1,123 @@
 """
-Service métier pour les backups.
+Sauvegardes de la base, réservées au super admin.
 
-Deux formats supportés :
-  - SQL : dump complet via `pg_dump`, idéal pour restaurer la base.
-  - CSV : un fichier .csv par table, zippé dans un .zip, idéal pour Excel.
+Fusion des deux versions :
+- génération : celle de collins (CSV en mémoire, pg_dump appelé sans shell) ;
+- historique : celui de tete-work (chaque export est écrit dans BACKUP_DIR et
+  tracé dans la table `backups`, puis retéléchargeable).
 
-Chaque backup est :
-  1. Généré dans un répertoire `backend/backups/`.
-  2. Enregistré en base (table `backups`) avec son format, sa taille,
-     et l'utilisateur qui l'a déclenché.
+Formats :
+- CSV : une archive ZIP contenant un fichier CSV par table.
+- SQL : un dump complet produit par l'outil officiel pg_dump.
 """
 import csv
-import io
 import os
 import subprocess
 import uuid
-import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
+from uuid import UUID
+from zipfile import ZIP_DEFLATED, ZipFile
 
-from sqlalchemy import inspect, text
+from sqlalchemy import select
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.core.config import settings
+from app.core.exceptions import AppError, NotFoundError, ServiceUnavailableError
+from app.db.base_class import Base
 from app.models import Backup, BackupFormat, User
 
 
-# Répertoire où sont stockés les backups.
-BACKUP_DIR = Path("/app/backups")
-BACKUP_DIR.mkdir(exist_ok=True, parents=True)
+def backup_dir() -> Path:
+    path = Path(settings.BACKUP_DIR)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
-class BackupService:
-    """Regroupe les opérations métier sur les backups."""
+def _write_csv_zip(db: Session, target: Path) -> None:
+    with ZipFile(target, "w", ZIP_DEFLATED) as zip_file:
+        connection = db.connection()
+        for table in sorted(Base.metadata.sorted_tables, key=lambda item: item.name):
+            output = StringIO(newline="")
+            writer = csv.writer(output)
+            writer.writerow(column.name for column in table.columns)  # en-têtes
+            writer.writerows(connection.execute(select(table)).fetchall())
+            zip_file.writestr(f"{table.name}.csv", output.getvalue())
 
-    def __init__(self, db: Session):
-        self.db = db
 
-    # ------------------------------------------------------------------
-    # API publique
-    # ------------------------------------------------------------------
-    def create(self, format: BackupFormat, triggered_by: User) -> Backup:
-        """Génère un backup au format demandé et l'enregistre en base."""
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        backup_id = uuid.uuid4()
-        filename = f"backup_{timestamp}_{backup_id.hex[:8]}.{format.value}"
-        file_path = BACKUP_DIR / filename
+def _write_sql_dump(target: Path) -> None:
+    """
+    Lance pg_dump vers `target`.
 
-        if format == BackupFormat.SQL:
-            self._export_sql(file_path)
-        elif format == BackupFormat.CSV:
-            self._export_csv(file_path)
-        else:
-            raise ValueError(f"Unsupported backup format: {format}")
+    Sécurité : la commande est passée sous forme de liste (pas de shell),
+    ce qui empêche toute injection de commande ; le mot de passe passe par
+    la variable PGPASSWORD et n'apparaît pas dans la ligne de commande.
+    """
+    url = make_url(settings.DATABASE_URL)
+    if url.get_backend_name() != "postgresql":
+        error = AppError("Les exports SQL nécessitent PostgreSQL.")
+        error.status_code = 501
+        raise error
 
-        # Taille du fichier en Ko
-        file_size_kb = max(1, file_path.stat().st_size // 1024)
+    environment = os.environ.copy()
+    if url.password is not None:
+        environment["PGPASSWORD"] = url.password
 
-        # Enregistrement en base
-        backup = Backup(
-            id=backup_id,
-            format=format,
-            triggered_by=triggered_by.id,
-            file_path=str(file_path),
-            file_size_kb=file_size_kb,
-        )
-        self.db.add(backup)
-        self.db.commit()
-        self.db.refresh(backup)
-        return backup
+    command = ["pg_dump", "--no-owner", "--no-privileges", "--format=plain", "--file", str(target)]
+    if url.host:
+        command += ["--host", url.host]
+    if url.port:
+        command += ["--port", str(url.port)]
+    if url.username:
+        command += ["--username", url.username]
+    command.append(url.database or "")
 
-    def list(self) -> list[Backup]:
-        """Liste tous les backups, du plus récent au plus ancien."""
-        return self.db.query(Backup).order_by(Backup.created_at.desc()).all()
+    try:
+        subprocess.run(command, env=environment, check=True, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        target.unlink(missing_ok=True)
+        raise ServiceUnavailableError("La création du backup SQL a échoué.") from exc
 
-    def get_by_id(self, backup_id: uuid.UUID) -> Backup | None:
-        """Récupère un backup par son UUID."""
-        return self.db.query(Backup).filter(Backup.id == backup_id).first()
 
-    def get_file_path(self, backup: Backup) -> Path:
-        """Récupère le chemin physique d'un backup."""
-        return Path(backup.file_path)
+def create(db: Session, backup_format: BackupFormat, user: User) -> Backup:
+    """Génère le fichier, puis enregistre l'export dans l'historique."""
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    backup_id = uuid.uuid4()
+    extension = "sql" if backup_format == BackupFormat.SQL else "zip"
+    target = backup_dir() / f"camporga_{timestamp}_{backup_id.hex[:8]}.{extension}"
 
-    # ------------------------------------------------------------------
-    # Export SQL (via pg_dump)
-    # ------------------------------------------------------------------
-    def _export_sql(self, file_path: Path) -> None:
-        """Génère un dump SQL complet via `pg_dump`."""
-        db_url = settings.database_url
-        if not db_url.startswith("postgresql://"):
-            raise ValueError(f"Unsupported DATABASE_URL: {db_url}")
+    if backup_format == BackupFormat.SQL:
+        _write_sql_dump(target)
+    else:
+        _write_csv_zip(db, target)
 
-        # pg_dump utilise PGPASSWORD pour ne pas demander le mot de passe
-        env = os.environ.copy()
-        env["PGPASSWORD"] = self._extract_password(db_url)
+    backup = Backup(
+        id=backup_id,
+        format=backup_format,
+        triggered_by=user.id,
+        file_path=str(target),
+        file_size_kb=max(1, target.stat().st_size // 1024),
+    )
+    db.add(backup)
+    db.commit()
+    db.refresh(backup)
+    return backup
 
-        try:
-            result = subprocess.run(
-                ["pg_dump", "--no-password", "--format=plain", "--no-owner",
-                 "--no-acl", db_url],
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=60,
-            )
-        except FileNotFoundError:
-            raise RuntimeError(
-                "pg_dump not found. Install postgresql-client in the backend "
-                "container (see backend/Dockerfile)."
-            )
 
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"pg_dump failed (exit {result.returncode}): {result.stderr}"
-            )
+def list_backups(db: Session) -> list[Backup]:
+    return db.query(Backup).order_by(Backup.created_at.desc()).all()
 
-        file_path.write_text(result.stdout, encoding="utf-8")
 
-    def _extract_password(self, db_url: str) -> str:
-        """Extrait le mot de passe depuis l'URL de connexion."""
-        try:
-            auth_part = db_url.split("://")[1].split("@")[0]
-            return auth_part.split(":")[1]
-        except IndexError:
-            return ""
-
-    # ------------------------------------------------------------------
-    # Export CSV (un fichier par table, zippé)
-    # ------------------------------------------------------------------
-    def _export_csv(self, file_path: Path) -> None:
-        """Génère un ZIP contenant un fichier CSV par table."""
-        inspector = inspect(self.db.bind)
-        table_names = inspector.get_table_names()
-
-        # Exclut alembic_version (technique, pas métier)
-        table_names = [t for t in table_names if t != "alembic_version"]
-
-        with zipfile.ZipFile(file_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for table_name in table_names:
-                csv_content = self._table_to_csv(table_name)
-                zf.writestr(f"{table_name}.csv", csv_content)
-
-    def _table_to_csv(self, table_name: str) -> str:
-        """Exporte une table en CSV (retourne le contenu en str)."""
-        output = io.StringIO()
-        # Utilisation de text() pour compatibilité SQLAlchemy 2.0
-        result = self.db.execute(
-            text(f'SELECT * FROM "{table_name}"')  # noqa: S608
-        )
-        rows = result.fetchall()
-        columns = result.keys()
-
-        writer = csv.writer(output)
-        writer.writerow(columns)
-        for row in rows:
-            writer.writerow(row)
-
-        return output.getvalue()
+def get_file(db: Session, backup_id: UUID) -> Path:
+    backup = db.get(Backup, backup_id)
+    if backup is None:
+        raise NotFoundError("Sauvegarde introuvable.")
+    path = Path(backup.file_path).resolve()
+    # Défense en profondeur : on ne sert que des fichiers du dossier des sauvegardes.
+    if backup_dir().resolve() not in path.parents or not path.exists():
+        error = AppError("Le fichier de cette sauvegarde n'existe plus sur le serveur.")
+        error.status_code = 410
+        raise error
+    return path

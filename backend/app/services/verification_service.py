@@ -1,69 +1,82 @@
 """
-Service de vérification par SMS et Email (mode Mock pour le MVP).
+Vérification de l'email ou du téléphone par code à 6 chiffres (apport de tete-work).
+
+L'envoi est simulé pour le MVP (le code est écrit dans les logs du serveur,
+et renvoyé dans la réponse UNIQUEMENT en développement).
+
+Les codes sont stockés dans MongoDB, collection "verification_codes" :
+- l'index TTL sur `expires_at` fait supprimer les codes périmés par MongoDB ;
+- on ne stocke que l'empreinte SHA-256 du code, jamais le code lui-même ;
+- le nombre d'essais est limité, pour empêcher de deviner le code par force brute.
 """
-import random
-import string
-from datetime import datetime, timedelta
+import hashlib
+import logging
+import secrets
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy.orm import Session
+from pymongo.database import Database
+from pymongo.errors import PyMongoError
 
+from app.core.config import settings
+from app.core.exceptions import ServiceUnavailableError, ValidationError
+from app.db.mongo import VERIFICATION_CODES
 from app.models import User
 
-# Stockage en mémoire des codes (en prod : Redis avec TTL)
-# Format : { "user_id": { "code": "123456", "expires_at": datetime, "method": "sms" } }
-_verification_codes: dict[str, dict] = {}
+logger = logging.getLogger("camporga.verification")
 
 
-class VerificationService:
-    def __init__(self, db: Session):
-        self.db = db
+def _hash(code: str) -> str:
+    return hashlib.sha256(code.encode()).hexdigest()
 
-    def _generate_code(self) -> str:
-        """Génère un code à 6 chiffres."""
-        return "".join(random.choices(string.digits, k=6))
 
-    def send_sms_code(self, user: User) -> str:
-        """Génère et envoie un code par SMS (Mock)."""
-        if not user.phone_number:
-            raise ValueError("Aucun numéro de téléphone associé à ce compte.")
+def send_code(mongo: Database, user: User, method: str) -> dict:
+    """Génère un code, l'enregistre (empreinte) et simule son envoi."""
+    if method == "sms" and not user.phone_number:
+        raise ValidationError("Aucun numéro de téléphone n'est associé à ce compte.")
 
-        code = self._generate_code()
-        _verification_codes[str(user.id)] = {
-            "code": code,
-            "expires_at": datetime.utcnow() + timedelta(minutes=5),
-            "method": "sms",
-        }
+    # `secrets` (et non `random`) : générateur cryptographique, imprévisible.
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    now = datetime.now(timezone.utc)
+    try:
+        # Un seul code valide à la fois par utilisateur : le nouveau remplace l'ancien.
+        mongo[VERIFICATION_CODES].replace_one(
+            {"user_id": str(user.id)},
+            {
+                "user_id": str(user.id),
+                "method": method,
+                "code_hash": _hash(code),
+                "attempts": 0,
+                "created_at": now,
+                "expires_at": now + timedelta(minutes=settings.VERIFICATION_CODE_TTL_MINUTES),
+            },
+            upsert=True,
+        )
+    except PyMongoError as exc:
+        raise ServiceUnavailableError("La vérification est momentanément indisponible.") from exc
 
-        # MOCK : on affiche le code dans les logs du serveur
-        print(f"📱 [MOCK SMS] Code pour {user.phone_number} : {code}")
+    destination = user.phone_number if method == "sms" else user.email
+    logger.info("[ENVOI SIMULÉ %s] Code pour %s : %s", method.upper(), destination, code)
+    return {
+        "message": "Code envoyé par SMS." if method == "sms" else "Code envoyé par email.",
+        "debug_code": code if settings.is_development else None,
+    }
 
-        return code
 
-    def send_email_code(self, user: User) -> str:
-        """Génère et envoie un code par Email (Mock)."""
-        code = self._generate_code()
-        _verification_codes[str(user.id)] = {
-            "code": code,
-            "expires_at": datetime.utcnow() + timedelta(minutes=5),
-            "method": "email",
-        }
+def check_code(mongo: Database, user: User, code: str) -> None:
+    """Vérifie le code ; il est consommé (supprimé) dès qu'il est validé."""
+    collection = mongo[VERIFICATION_CODES]
+    try:
+        entry = collection.find_one({"user_id": str(user.id)})
+        expired = entry is not None and entry["expires_at"] < datetime.now(timezone.utc)
+        if entry is None or expired or entry["attempts"] >= settings.VERIFICATION_MAX_ATTEMPTS:
+            collection.delete_one({"user_id": str(user.id)})
+            raise ValidationError("Code invalide ou expiré. Demandez un nouveau code.")
 
-        print(f"📧 [MOCK EMAIL] Code pour {user.email} : {code}")
+        # compare_digest : comparaison en temps constant (pas de fuite par le temps de réponse).
+        if not secrets.compare_digest(entry["code_hash"], _hash(code)):
+            collection.update_one({"user_id": str(user.id)}, {"$inc": {"attempts": 1}})
+            raise ValidationError("Code invalide.")
 
-        return code
-
-    def verify_code(self, user: User, code: str) -> bool:
-        """Vérifie si le code est valide et non expiré."""
-        user_data = _verification_codes.get(str(user.id))
-        if not user_data:
-            return False
-
-        if user_data["expires_at"] < datetime.utcnow():
-            del _verification_codes[str(user.id)]
-            return False
-
-        if user_data["code"] == code:
-            del _verification_codes[str(user.id)]  # Consomme le code
-            return True
-
-        return False
+        collection.delete_one({"user_id": str(user.id)})
+    except PyMongoError as exc:
+        raise ServiceUnavailableError("La vérification est momentanément indisponible.") from exc

@@ -4,32 +4,28 @@
 
 > Plateforme web pour organiser et gérer des summer camps de code & d'informatique — de la création du camp jusqu'à l'inscription des participants.
 
-![Status](https://img.shields.io/badge/status-en%20d%C3%A9veloppement-F9646A)
+![Status](https://img.shields.io/badge/status-MVP%20fonctionnel-success)
+![Backend tests](https://img.shields.io/badge/backend-127%20tests%20%C2%B7%2097%25-brightgreen)
+![Frontend tests](https://img.shields.io/badge/frontend-37%20tests-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-2F3C7E)
-![Made with](https://img.shields.io/badge/stack-React%20%7C%20FastAPI%20%7C%20PostgreSQL-1B2454)
+![Made with](https://img.shields.io/badge/stack-React%20%7C%20FastAPI%20%7C%20PostgreSQL%20%7C%20MongoDB-1B2454)
 
 Projet réalisé dans le cadre du **Portfolio Project** — Holberton School France.
 
 ---
 
-## 📸 Aperçu
-
-<!-- Remplacer par une vraie capture une fois le nouveau design (hors charte Holberton) finalisé -->
-<p align="center">
-  <img src="docs/screenshots/landing.png" alt="Landing page d'un camp CampOrga" width="700">
-</p>
-
 ## 📋 Sommaire
 
 - [Le problème](#-le-problème)
 - [Fonctionnalités](#-fonctionnalités)
-- [Stack technique](#-stack-technique)
-- [Architecture](#-architecture)
+- [Stack technique](#️-stack-technique)
+- [Architecture](#️-architecture)
 - [Installation](#-installation)
+- [Tests](#-tests)
 - [Structure du projet](#-structure-du-projet)
 - [Documentation](#-documentation)
 - [Équipe](#-équipe)
-- [Roadmap](#-roadmap)
+- [Roadmap](#️-roadmap)
 - [Licence](#-licence)
 
 ## 🎯 Le problème
@@ -40,91 +36,140 @@ Les équipes qui organisent des summer camps de code n'ont aujourd'hui pas d'out
 
 ## ✨ Fonctionnalités
 
-- 🗓️ **Création et gestion de camps** — dates, description, modalités d'éligibilité (mineurs/majeurs, niveau requis)
-- 🌐 **Landing page publique par camp** — compte à rebours, présentation, partage LinkedIn
-- ✍️ **Inscription en ligne** — nom, prénom, email, commentaire, confirmation de venue
-- 📊 **Dashboard organisateur** — vue sur les camps gérés et les inscriptions récentes
-- 👥 **Gestion des utilisateurs et des rôles** (SEM, SWE, SSM, directeur de campus, directeur technique) par un super admin
-- 💾 **Export de backup** de la base de données en SQL et CSV, réservé au super admin
-- 💬 **Contact** — hotline et chatbot IA sur chaque landing page
+**Visiteurs (sans compte)**
+- 🌐 **Landing page publique par camp** — thème de saison, compte à rebours, places restantes, âge minimum, partage LinkedIn
+- ✍️ **Inscription en ligne** — nom, prénom, email, commentaire
+- 💬 **Contact** — formulaire hotline et chatbot (réponses par intention, historique dans MongoDB)
+
+**Organisateurs**
+- 📝 **Création de compte** — le compte est créé « en attente » et activé par le super admin
+- 🔐 **Connexion sécurisée** — JWT, double authentification TOTP optionnelle (QR code), vérification par code email/SMS
+- 🗓️ **Gestion des camps** — dates, ville, âge minimum (`age`, vide = tous âges), capacité, modalités, statut brouillon/publié/archivé
+- 📊 **Dashboard** — camps gérés, inscriptions récentes, présences, messages, statistiques du chatbot
+- 👤 **Mon compte** — profil, téléphone, 2FA, suppression du compte
+
+**Super admin**
+- 👥 **Gestion des utilisateurs** — création, rôles (SEM, SWE, SSM, DC, DT…), activation des comptes en attente, suppression protégée
+- 💾 **Backups** — export SQL (`pg_dump`) ou CSV, historique et téléchargement
 
 ## 🛠️ Stack technique
 
 | Couche | Technologies |
 |---|---|
-| Frontend | React, Vite, TypeScript, Tailwind CSS, TanStack Query, React Hook Form, React Router |
-| Backend | Python, FastAPI, SQLAlchemy, Alembic, Pydantic |
-| Base de données | PostgreSQL |
-| Infrastructure | Docker, Docker Compose |
-| Qualité | Pytest, Vitest, React Testing Library, ESLint, Prettier, Ruff, Black |
+| Frontend | React 19, TypeScript (strict), Vite, Tailwind CSS 4, React Router 7, TanStack Query 5, React Hook Form + Zod 4 |
+| Backend | Python 3.11, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2 |
+| Auth | JWT (HS256, claim `scope`), bcrypt, TOTP (pyotp + QR code), codes de vérification hachés (SHA-256) |
+| Bases de données | PostgreSQL 16 (données métier) · MongoDB 7 (conversations du chatbot, codes de vérification, avec index TTL) |
+| Infrastructure | Docker / Podman Compose, script `camporga.sh` |
+| Qualité | Pytest + mongomock (127 tests, 97 %), Vitest + Testing Library (37 tests), Playwright, axe-core, ESLint, Ruff, Black |
 
 ## 🏗️ Architecture
 
-```
-┌──────────────┐      HTTP/JSON      ┌──────────────┐        SQL        ┌──────────────┐
-│   Frontend   │  ─────────────────▶ │   Backend    │ ─────────────────▶│  PostgreSQL  │
-│ React + TS   │ ◀───────────────── │   FastAPI    │ ◀───────────────── │              │
-└──────────────┘                     └──────────────┘                   └──────────────┘
-                                             │
-                                             ▼
-                                   pg_dump (SQL) / CSV
-                                      exports (backup)
+```text
+┌──────────────┐   HTTP/JSON (JWT)   ┌──────────────────────────┐    SQL    ┌──────────────┐
+│   Frontend   │ ──────────────────▶ │         Backend          │ ────────▶ │ PostgreSQL16 │
+│ React + TS   │ ◀────────────────── │         FastAPI          │ ◀──────── │ users, camps │
+│ (Vite :5173) │                     │  api/ → services/ → db   │           │ backups …    │
+└──────────────┘                     └──────────────────────────┘           └──────────────┘
+                                        │                 │
+                                        │ pymongo         │ pg_dump / CSV
+                                        ▼                 ▼
+                                 ┌──────────────┐   ┌──────────────┐
+                                 │  MongoDB 7   │   │  backend/    │
+                                 │ chat, codes  │   │  backups/    │
+                                 └──────────────┘   └──────────────┘
 ```
 
-Le schéma détaillé de la base de données est disponible dans [`docs/database-schema.sql`](./docs/database-schema.sql).
+Le backend est organisé en couches : `api/` (routes fines) → `services/` (logique métier, règles d'autorisation) → `models/` (SQLAlchemy) ; `schemas/` valide les entrées/sorties et `core/` regroupe configuration, sécurité, dépendances et exceptions.
+
+Le schéma de données est décrit dans [`docs/database-schema.sql`](./docs/database-schema.sql) et le diagramme dans [`docs/diagram_database.png`](./docs/diagram_database.png) (source Mermaid : [`docs/diagram_database.mmd`](./docs/diagram_database.mmd)).
 
 ## 🚀 Installation
 
 ### Prérequis
-- Docker et Docker Compose
-- Node.js 20+ (pour le développement frontend hors conteneur)
-- Python 3.11+ (pour le développement backend hors conteneur)
+- Docker (ou Podman) avec Compose
+- Node.js 20+ (frontend)
+- Python 3.11+ (seulement pour le développement backend hors conteneur)
 
-### Avec Docker (recommandé)
-
-```bash
-git clone https://github.com/<votre-org>/camporga.git
-cd camporga
-docker compose up --build
-```
-
-- Frontend disponible sur `http://localhost:5173`
-- API disponible sur `http://localhost:8000`
-- Documentation Swagger de l'API sur `http://localhost:8000/docs`
-
-### Sans Docker
+### Avec le script `camporga.sh` (recommandé)
 
 ```bash
-# Backend
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn app.main:app --reload
+git clone https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio.git
+cd holbertonschool-portfolio
+./camporga.sh start      # crée .env si besoin, lance PostgreSQL + MongoDB + API, applique les migrations
+./camporga.sh admin      # crée le premier super admin
+./camporga.sh frontend   # lance le frontend Vite sur http://localhost:5173
 ```
 
+| Commande | Effet |
+|---|---|
+| `start` / `stop` / `restart` | Démarre, arrête, redémarre les services |
+| `test` | Lance les tests backend sur une base dédiée `camporga_test` |
+| `admin` / `admin-reset` | Crée le super admin / le supprime (avec ses camps et backups) puis le recrée |
+| `frontend` / `frontend-stop` | Lance / arrête le frontend |
+| `format` | Formate le code Python (Ruff + Black) |
+| `logs` / `ps` | Logs du backend / état des services |
+| `cleanup` | Supprime conteneurs et volumes |
+
+### Avec Docker Compose directement
+
 ```bash
-# Frontend
-cd frontend
-npm install
-npm run dev
+cp .env.example .env          # puis remplacer les mots de passe et SECRET_KEY
+docker compose up --build -d  # les migrations Alembic sont appliquées au démarrage
+docker compose exec backend python -m scripts.bootstrap_admin
+cd frontend && npm install && npm run dev
 ```
+
+- Frontend : `http://localhost:5173`
+- API : `http://localhost:8000` — Swagger : `http://localhost:8000/docs`
+
+En production, définissez `ENVIRONMENT=production`, une `SECRET_KEY` robuste et privée, et `CORS_ORIGINS` avec les origines exactes du frontend. En développement uniquement, l'API renvoie le code de vérification email/SMS dans la réponse (`debug_code`) puisqu'aucun fournisseur d'envoi n'est branché.
+
+## 🧪 Tests
+
+```bash
+./camporga.sh test                 # backend : 127 tests, couverture 97 %
+cd frontend && npm test            # frontend : 37 tests (Vitest)
+cd frontend && npm run typecheck && npm run lint
+```
+
+Les tests backend utilisent une base PostgreSQL dédiée (`camporga_test`) et `mongomock` pour MongoDB : ils ne touchent jamais aux données de développement.
 
 ## 📁 Structure du projet
 
-```
-camporga/
-├── backend/          # API FastAPI (routes, modèles, services)
-├── frontend/          # Interface React
-├── docs/              # Documentation du projet (voir ci-dessous)
-├── docker-compose.yml
-└── README.md
+```text
+holbertonschool-portfolio/
+├── backend/
+│   ├── app/
+│   │   ├── api/            # Routes FastAPI (auth, users, camps, registrations, landing_pages,
+│   │   │                   #   contact_messages, chat, dashboard, backups)
+│   │   ├── services/       # Logique métier + permissions + 2FA + vérification + backups
+│   │   ├── models/         # Modèles SQLAlchemy (7 tables)
+│   │   ├── schemas/        # Validation Pydantic v2
+│   │   ├── core/           # config, security (JWT/bcrypt), deps, exceptions
+│   │   ├── db/             # Sessions PostgreSQL + connexion MongoDB (index TTL)
+│   │   └── main.py         # Application, CORS, gestion des erreurs, /health, /ready
+│   ├── alembic/versions/   # 5 migrations (dont la fusion collins + tete-work)
+│   ├── scripts/            # bootstrap_admin.py
+│   ├── tests/              # 127 tests Pytest
+│   └── Dockerfile
+├── frontend/
+│   └── src/
+│       ├── api/            # Client HTTP typé + endpoints
+│       ├── auth/           # AuthContext (session, 2FA), RequireAuth
+│       ├── components/     # UI, formulaires, ChatWidget, compte à rebours
+│       ├── pages/          # Public, organizer/ (dashboard, camps, compte), admin/ (users, backups)
+│       └── lib/            # Schémas Zod, formatage, thèmes de saison
+├── docs/                   # Documentation (voir docs/README.md)
+├── scripts/                # Outils (compat_evaluator, visualize_repo, run_all_tests)
+├── camporga.sh             # Script de gestion du cycle de vie
+├── docker-compose.yml      # PostgreSQL + MongoDB + backend
+└── .env.example
 ```
 
 ## 📚 Documentation
 
-Toute la documentation détaillée du projet (rapports Holberton, schéma de données) se trouve dans le dossier [`docs/`](./docs/README.md).
+Toute la documentation détaillée (rapports Holberton, schéma de données, présentation, changelog) se trouve dans le dossier [`docs/`](./docs/README.md).
 
 ## 👥 Équipe
 
@@ -138,12 +183,15 @@ Toute la documentation détaillée du projet (rapports Holberton, schéma de don
 ## 🗺️ Roadmap
 
 - [x] Idéation et validation du MVP avec le client
-- [x] Schéma de base de données
-- [ ] Nouvelle charte graphique (hors identité Holberton)
-- [ ] Développement du MVP
-- [ ] Fonctionnalité de backup SQL/CSV
+- [x] Schéma de base de données (PostgreSQL + MongoDB)
+- [x] Backend MVP : CRUD, auth JWT + 2FA, inscription, chatbot, backups SQL/CSV
+- [x] Frontend React : espace public, espace organisateur, administration
+- [x] Fusion des branches `collins` et `tete-work` (âge unique, sans paiement)
+- [ ] Intégration continue (GitHub Actions) et déploiement en ligne
+- [ ] Envoi réel des emails/SMS de vérification
+- [ ] Scalabilité (voir [`docs/scalability-roadmap.md`](./docs/scalability-roadmap.md))
 - [ ] Recommandation de camps par ML *(hors scope MVP)*
 
 ## 📄 Licence
 
-Distribué sous licence MIT. Voir [`LICENSE`](./LICENSE) pour plus de détails.
+Distribué sous licence MIT.

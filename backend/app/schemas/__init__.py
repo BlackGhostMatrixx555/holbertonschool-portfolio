@@ -1,8 +1,9 @@
 """
-Regroupe tous les schémas Pydantic.
+Schémas Pydantic : le "contrat" de l'API.
 
-Les schémas Pydantic servent de contrat entre l'API et le monde extérieur :
-ils valident les données entrantes (JSON reçu) et sérialisent les données
-sortantes (JSON renvoyé). Ils sont distincts des modèles SQLAlchemy, qui
-représentent eux la structure de la base de données.
+- Les schémas d'entrée (…Create, …Update, …Input) valident ce que le client
+  envoie : types, longueurs, valeurs autorisées. Une donnée invalide est
+  rejetée en 422 avant même d'atteindre la logique métier.
+- Les schémas de sortie (…View) choisissent les champs renvoyés : par
+  exemple, password_hash n'est jamais exposé.
 """

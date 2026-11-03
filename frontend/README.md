@@ -1,75 +1,54 @@
-# React + TypeScript + Vite
+# CampOrga – Front-end
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interface web de CampOrga : React 19, TypeScript, Vite, Tailwind CSS,
+React Router, TanStack Query, React Hook Form + Zod.
 
-Currently, two official plugins are available:
+## Démarrer
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+cp .env.example .env      # URL de l'API (par défaut http://localhost:8000)
+npm install
+npm run dev               # http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+L'API doit tourner en parallèle (`docker compose up -d` à la racine du projet).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Scripts
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Commande | Rôle |
+| --- | --- |
+| `npm run dev` | Serveur de développement avec rechargement à chaud |
+| `npm run build` | Vérification TypeScript puis build de production dans `dist/` |
+| `npm test` | Tests unitaires et de composants (Vitest + Testing Library) |
+| `npm run lint` | Analyse statique (ESLint) |
+
+## Organisation
 
 ```
+src/
+├── api/          client HTTP, une fonction par route, types de l'API
+├── auth/         contexte d'authentification et garde de routes
+├── components/   composants réutilisables (formulaires, chatbot, onglets…)
+├── lib/          dates, saisons, schéma de validation des camps
+├── pages/        une page par écran (public, organisateur, admin)
+└── test/         configuration et outils de test
+```
+
+## Pages
+
+| URL | Accès | Rôle |
+| --- | --- | --- |
+| `/` | Public | Liste des camps publiés |
+| `/camps/:slug` | Public | Landing page : compte à rebours saisonnier, inscription, contact, chatbot, partage LinkedIn |
+| `/connexion` | Public | Connexion des organisateurs |
+| `/espace` | Organisateur | Tableau de bord |
+| `/espace/camps/nouveau` · `/espace/camps/:id/modifier` | Organisateur | Formulaire de camp |
+| `/espace/camps/:id` | Organisateur | Inscriptions, landing page, messages, statistiques du chatbot |
+| `/espace/utilisateurs` · `/espace/sauvegardes` | Super admin | Comptes et exports |
+
+## Accessibilité
+
+- Labels reliés aux champs, erreurs annoncées (`aria-invalid`, `aria-describedby`, `role="alert"`)
+- Navigation clavier complète, focus visible, lien d'évitement, onglets WAI-ARIA (flèches gauche/droite)
+- Contrastes WCAG AA, respect de `prefers-reduced-motion`
+- Audit axe-core : aucune violation WCAG 2.1 AA sur les pages principales

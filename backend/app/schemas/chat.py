@@ -1,23 +1,43 @@
-"""
-Schémas Pydantic pour le chatbot et la hotline.
-"""
-import uuid
+"""Schémas du chatbot de la landing page."""
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, Field
-from app.models.enums import ContactChannel
+
 
 class ChatRequest(BaseModel):
-    """Message envoyé par un visiteur au chatbot."""
-    message: str = Field(..., min_length=1, max_length=1000)
-    camp_id: uuid.UUID | None = None
+    # Identifiant de session généré par le navigateur (UUID) ; absent au 1er message.
+    session_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9-]+$")
+    message: str = Field(min_length=1, max_length=500)
 
-class ChatResponse(BaseModel):
-    """Réponse renvoyée par le chatbot."""
+
+class ChatReply(BaseModel):
+    session_id: str
     reply: str
-    channel: ContactChannel = ContactChannel.CHATBOT
+    intent: str
 
-class ContactMessageCreate(BaseModel):
-    """Message envoyé via le formulaire de contact (hotline)."""
-    name: str = Field(..., min_length=1, max_length=150)
-    email: str = Field(..., max_length=255)
-    message: str = Field(..., min_length=1)
-    camp_id: uuid.UUID | None = None
+
+class ChatMessage(BaseModel):
+    role: Literal["visitor", "bot"]
+    content: str
+    intent: str | None = None
+    at: datetime
+
+
+class ConversationView(BaseModel):
+    session_id: str
+    camp_slug: str
+    created_at: datetime
+    updated_at: datetime
+    messages: list[ChatMessage]
+
+
+class IntentCount(BaseModel):
+    intent: str
+    count: int
+
+
+class ChatStats(BaseModel):
+    conversations: int
+    visitor_messages: int
+    top_intents: list[IntentCount]

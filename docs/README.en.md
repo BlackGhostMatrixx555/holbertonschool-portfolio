@@ -1,156 +1,47 @@
-
-# 🏕️ CampOrga
+# 📚 Documentation — CampOrga
 
 🇫🇷 [Français](./README.md) | 🇬🇧 English
 
-> A web platform for organizing and managing coding & tech summer camps — from camp creation through to participant registration.
+This folder holds all the project documentation. For installation and the overview, see the [main README](../README.en.md).
 
-![Status](https://img.shields.io/badge/status-MVP%20validated-success)
-![Tests](https://img.shields.io/badge/tests-50%20passed-brightgreen)
-![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-2F3C7E)
+## Data
 
-Built as part of the **Portfolio Project** — Holberton School France.
-
----
-
-## 📸 Preview
-
-<!-- Replace with a real screenshot once the new design (outside Holberton's brand) is finalized -->
-<p align="center">
-  <img src="docs/screenshots/landing.png" alt="CampOrga camp landing page" width="700">
-</p>
-
-## 📋 Table of Contents
-
-- [The Problem](#-the-problem)
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Architecture](#-architecture)
-- [Installation](#-installation)
-- [Tests](#-tests)
-- [Project Structure](#-project-structure)
-- [Documentation](#-documentation)
-- [Team](#-team)
-- [Roadmap](#-roadmap)
-- [License](#-license)
-
-## 🎯 The Problem
-
-Teams that organize coding summer camps currently have no centralized tool: each camp is managed separately, visibility across the organization's camps is poor, and the registration process for participants is neither standardized nor engaging.
-
-**CampOrga** centralizes camp creation, exposes a public landing page per camp, and gives both organizers and the super admin a clear view of the whole platform.
-
-## ✨ Features (MVP)
-
-- 🗓️ **Camp creation and management** — dates, description, eligibility criteria
-- 🌐 **Public landing page per camp** — countdown, presentation, LinkedIn sharing
-- ✍️ **Online registration** — first name, last name, email, comment, attendance confirmation
-- 📊 **Organizer dashboard** — overview of managed camps and recent registrations
-- 👥 **User and role management** by a super admin (JWT)
-- 💾 **Database backup export** in SQL and CSV (super admin only)
-- 💬 **Contact** — hotline and AI chatbot (mock) on every landing page
-
-## 🛠️ Tech Stack
-
-| Layer | Technologies |
+| File | Content |
 |---|---|
-| Frontend | React, Vite, TypeScript, Tailwind CSS, TanStack Query, React Hook Form, React Router |
-| Backend | Python 3.11, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic v2 |
-| Auth | JWT (HS256), bcrypt, passlib |
-| Database | PostgreSQL 16 |
-| Infrastructure | Docker, Docker Compose |
-| Quality | Pytest (50 tests), httpx, Ruff, Black |
+| [`database-schema.sql`](./database-schema.sql) | Readable PostgreSQL schema (7 tables, enums) and description of the MongoDB collections — up to date with migration `e7a1c3f90b21` |
+| [`diagram_database.png`](./diagram_database.png) | Entity-relationship diagram (PostgreSQL + MongoDB) |
+| [`diagram_database.mmd`](./diagram_database.mmd) | Mermaid source of the diagram (`mmdc -i diagram_database.mmd -o diagram_database.png -t dark -b black`) |
+| [`database-schema.pdf`](./database-schema.pdf) | PDF version of the diagram |
 
-## 🏗️ Architecture
+**How the data is split**
 
-```text
-┌──────────────┐      HTTP/JSON      ┌──────────────┐        SQL        ┌──────────────┐
-│   Frontend   │  ─────────────────▶ │   Backend    │ ─────────────────▶│  PostgreSQL  │
-│ React + TS   │ ◀───────────────── │   FastAPI    │ ◀───────────────── │              │
-└──────────────┘                     └──────────────┘                   └──────────────┘
-                                             │
-                                             ▼
-                                   pg_dump (SQL) / CSV
-                                      exports (backup)
-The detailed database schema is available in docs/database-schema.sql.
+- **PostgreSQL**: `users`, `camps`, `camp_modalities`, `landing_pages`, `registrations`, `contact_messages`, `backups` — business data, relational integrity.
+- **MongoDB**: `chat_conversations` (one chatbot conversation per session, deleted after 90 days of inactivity) and `verification_codes` (hashed email/SMS code, expires after 5 minutes) — nested documents and temporary data with TTL indexes.
 
-🚀 Installation
-Prerequisites
-Docker and Docker Compose
+## Project
 
-Python 3.11+ (for development outside the container)
+| File | Content |
+|---|---|
+| [`project-presentation.md`](./project-presentation.md) | Full presentation (French): architecture, API, security, tests, infrastructure |
+| [`CHANGELOG.md`](./CHANGELOG.md) | Version history (2.0.0 = `collins` + `tete-work` merge) |
+| [`scalability-roadmap.md`](./scalability-roadmap.md) | Architecture evolution from 10 to 100,000 users |
+| [`SOD20_Scalabilite_10_a_100000.pdf`](./SOD20_Scalabilite_10_a_100000.pdf) | Scalability presentation slides |
+| [`commandes_a_entrer.txt`](./commandes_a_entrer.txt) | Terminal command cheat sheet |
 
-With Docker (recommended)
-bash
-git clone https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio.git
-cd holbertonschool-portfolio
-cp backend/.env.example backend/.env
-# Edit backend/.env and add a SECRET_KEY generated via:
-# python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-docker compose up --build -d
-docker compose exec backend alembic upgrade head
-API available at http://localhost:8000
+## Holberton deliverables (dated, unchanged)
 
-API Swagger docs at http://localhost:8000/docs
+| File | Stage |
+|---|---|
+| [`stage1-report-en.pdf`](./stage1-report-en.pdf) | Stage 1 — Idea and team formation |
+| [`stage2-project-planning-en.pdf`](./stage2-project-planning-en.pdf) | Stage 2 — Project planning |
+| [`stage3-technical-documentation.pdf`](./stage3-technical-documentation.pdf) | Stage 3 — Technical documentation |
+| [`cahier-des-charges.pdf`](./cahier-des-charges.pdf) | Specifications |
+| [`use-cases.pdf`](./use-cases.pdf) | Use cases |
 
-Create the first super admin
-bash
-docker compose exec backend python -c "
-from app.database import SessionLocal
-from app.models import UserRole
-from app.schemas.user import UserCreate
-from app.services.user_service import UserService
+## Prototypes and tools
 
-db = SessionLocal()
-try:
-    UserService(db).create(UserCreate(
-        first_name='Admin',
-        last_name='CampOrga',
-        email='admin@camporga.fr',
-        password='ChangeMe123!',
-        role=UserRole.SUPER_ADMIN,
-    ))
-    print('✅ Super admin created')
-finally:
-    db.close()
-"
-🧪 Tests
-bash
-# Run all tests (50)
-docker compose exec backend pytest
-
-# Run with coverage (~96%)
-docker compose exec backend pytest --cov=app --cov-report=term-missing
-📁 Project Structure
-text
-holbertonschool-portfolio/
-├── backend/           # FastAPI API (routes, models, services)
-│   ├── app/
-│   ├── alembic/       # Migrations
-│   └── tests/         # 50 Pytest tests
-├── frontend/          # React interface (in progress)
-├── docs/              # Project documentation
-├── docker-compose.yml
-└── README.md
-📚 Documentation
-The full project documentation (Holberton reports, data schema) is available in the docs/ folder.
-
-👥 Team
-Member	Role
-Thélyaan Dufrénoy	Fullstack Developer / Lead (+ Frontend)
-Collins Odi Obi	Backend / DevOps Developer (+ Frontend)
-The team was initially formed with 3 members; Harold NGuementa stepped away from the project. Frontend development is now shared between the two remaining members.
-
-🗺️ Roadmap
-☑ Idea development and MVP validation with the client
-☑ Database schema
-☑ Backend MVP development (CRUD, JWT Auth, Backups, Chatbot)
-☑ Test suite (50 tests, ~96% coverage)
-□ React frontend development
-□ Scalability (see docs/scalability-roadmap.md)
-□ New graphic identity (outside Holberton's branding)
-□ ML-based camp recommendations (out of scope for the MVP)
-
-📄 License
-Distributed under the MIT License. See LICENSE for details.
+| File | Content |
+|---|---|
+| [`summer-camp-prototype.html`](./summer-camp-prototype.html) | First static landing page prototype |
+| [`2fa-tester.html`](./2fa-tester.html) | Manual test page for two-factor authentication |
+| [`screenshots/`](./screenshots/) | Screenshots (including a chatbot conversation stored in MongoDB) |

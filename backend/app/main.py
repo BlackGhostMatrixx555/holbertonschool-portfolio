@@ -1,37 +1,91 @@
 """
 Point d'entrée de l'API CampOrga.
-"""
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
-from app.routes import auth, backups, camps, chat, payments, two_factor, users, verification
+Assemble l'application : middleware CORS, gestion des erreurs métier,
+routeurs de chaque domaine et routes de supervision (health / ready).
+"""
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from starlette.middleware.cors import CORSMiddleware
+
+from pymongo.errors import PyMongoError
+
+from app.api import auth, backups, camps, chat, contact_messages, dashboard, landing_pages, registrations, users
+from app.core.config import settings
+from app.core.exceptions import AppError
+from app.db.mongo import ensure_indexes, get_mongo_db
+from app.db.session import engine
+
+logger = logging.getLogger("camporga")
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Au démarrage : crée les index MongoDB. L'API démarre même si MongoDB
+    est indisponible : seul le chatbot sera inaccessible (réponse 503)."""
+    # Respecte une éventuelle surcharge (les tests utilisent une base simulée).
+    provider = application.dependency_overrides.get(get_mongo_db, get_mongo_db)
+    try:
+        ensure_indexes(provider())
+    except PyMongoError as exc:
+        logger.warning("MongoDB indisponible au démarrage : %s", exc)
+    yield
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title="CampOrga API",
-    description="API de gestion de summer camps de code & d'informatique",
-    version="0.7.0",
+    version="0.2.0",
+    description="API de gestion de summer camps de code : camps, landing pages, inscriptions.",
 )
 
+# CORS : seul le front-end déclaré dans la configuration peut appeler l'API
+# depuis un navigateur. Les en-têtes autorisés sont limités au strict nécessaire.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    # Sans cela, le navigateur cache cet en-tête au JavaScript (CORS) et le
+    # front-end ne peut pas connaître le nom du fichier de sauvegarde téléchargé.
+    expose_headers=["Content-Disposition"],
 )
 
-# Routes métier
-app.include_router(camps.router, prefix="/api")
-app.include_router(auth.router, prefix="/api")
-app.include_router(users.router, prefix="/api")
-app.include_router(backups.router, prefix="/api")
-app.include_router(chat.router, prefix="/api")
-app.include_router(two_factor.router, prefix="/api")
-app.include_router(verification.router, prefix="/api")
-app.include_router(payments.router, prefix="/api")
+
+@app.exception_handler(AppError)
+def handle_app_error(_: Request, exc: AppError) -> JSONResponse:
+    """Traduit une erreur métier (NotFoundError, ConflictError...) en réponse HTTP."""
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 
-@app.get("/health", tags=["health"])
+# Toutes les routes métier sont préfixées par /api.
+for module in (auth, users, camps, registrations, landing_pages, contact_messages, chat, dashboard, backups):
+    app.include_router(module.router, prefix="/api")
+
+
+@app.get("/", tags=["Supervision"])
+def read_root():
+    return {"message": "Welcome to CampOrga API"}
+
+
+@app.get("/health", tags=["Supervision"])
 def health_check():
-    """Route simple pour vérifier que l'API répond."""
+    """Liveness : le processus répond."""
     return {"status": "ok"}
+
+
+@app.get("/ready", tags=["Supervision"])
+def readiness_check():
+    """Readiness : la base de données répond aussi (utilisé par Docker)."""
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError as exc:
+        raise HTTPException(status_code=503, detail="Database unavailable.") from exc
+    return {"status": "ready", "database": "connected"}

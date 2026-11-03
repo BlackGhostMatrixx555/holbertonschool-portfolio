@@ -34,16 +34,21 @@ CONTAINER_CMD=$(detect_container_tool)
 log_info "Outil de conteneurisation détecté : ${CONTAINER_CMD}"
 
 # --- Vérification du .env ---
+# La fusion lit les secrets dans le .env à la RACINE (voir docker-compose.yml).
+# S'il n'existe pas, on le crée depuis .env.example avec des secrets aléatoires.
 check_env() {
-    if [ ! -f "backend/.env" ]; then
-        log_warn "Le fichier backend/.env n'existe pas. Création..."
-        if [ -f "backend/.env.example" ]; then
-            cp backend/.env.example backend/.env
-            log_info "Fichier .env créé. N'oubliez pas d'y ajouter une vraie SECRET_KEY !"
-        else
-            log_error "backend/.env.example introuvable."
+    if [ ! -f ".env" ]; then
+        if [ ! -f ".env.example" ]; then
+            log_error ".env.example introuvable."
             exit 1
         fi
+        log_warn "Le fichier .env n'existe pas. Création avec des secrets aléatoires..."
+        cp .env.example .env
+        gen() { python3 -c "import secrets; print(secrets.token_urlsafe($1))"; }
+        sed -i "s/^SECRET_KEY=.*/SECRET_KEY=$(gen 48)/" .env
+        sed -i "s/^MONGO_PASSWORD=.*/MONGO_PASSWORD=$(gen 24)/" .env
+        sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=camporga/" .env
+        log_info "Fichier .env créé (SECRET_KEY et MONGO_PASSWORD générés)."
     fi
 }
 
@@ -107,20 +112,18 @@ do_cleanup() {
 }
 
 do_test() {
-    log_info "Nettoyage de la base de données (pour un environnement de test propre)..."
-    $CONTAINER_CMD exec -T db psql -U camporga -c "
-        TRUNCATE TABLE payments, registrations, contact_messages, landing_pages, camp_modalities, camps, backups, users RESTART IDENTITY CASCADE;
-    " > /dev/null 2>&1
-    log_info "Base nettoyée."
-    
+    # Les tests tournent sur une base dédiée "camporga_test" : la base de
+    # développement (vos camps, inscriptions, comptes) n'est jamais modifiée.
+    log_info "Préparation de la base de test (camporga_test)..."
+    $CONTAINER_CMD exec -T db sh -c 'psql -U "$POSTGRES_USER" -tAc "SELECT 1 FROM pg_database WHERE datname='"'"'camporga_test'"'"'" | grep -q 1 || createdb -U "$POSTGRES_USER" camporga_test'
     log_info "Lancement de la suite de tests..."
-    $CONTAINER_CMD exec backend pytest --cov=app --cov-report=term-missing
+    $CONTAINER_CMD exec -e DATABASE_URL="postgresql://camporga:camporga@db:5432/camporga_test" backend pytest --cov=app --cov-report=term-missing
 }
 
 do_admin() {
     log_info "Vérification de l'existence d'un super admin..."
     ADMIN_EXISTS=$($CONTAINER_CMD exec -T backend python -c "
-from app.database import SessionLocal
+from app.db.session import SessionLocal
 from app.models import User, UserRole
 
 db = SessionLocal()
@@ -145,21 +148,20 @@ finally:
     else
         log_info "Aucun Super Admin trouvé. Création du compte par défaut..."
         $CONTAINER_CMD exec backend python -c "
-from app.database import SessionLocal
-from app.models import UserRole, UserStatus
-from app.schemas.user import UserCreate
-from app.services.user_service import UserService
+from app.core.security import hash_password
+from app.db.session import SessionLocal
+from app.models import User, UserRole, UserStatus
 
 db = SessionLocal()
 try:
-    user = UserService(db).create(UserCreate(
+    db.add(User(
         first_name='Admin',
         last_name='CampOrga',
         email='admin@camporga.fr',
-        password='ChangeMe123!',
+        password_hash=hash_password('ChangeMe123!'),
         role=UserRole.SUPER_ADMIN,
+        status=UserStatus.ACTIVE,
     ))
-    user.status = UserStatus.ACTIVE
     db.commit()
     print('✅ Super Admin créé avec succès.')
     print('   📧 Email    : admin@camporga.fr')
@@ -179,32 +181,38 @@ do_admin_reset() {
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         log_info "Suppression des données liées au Super Admin..."
-        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM backups WHERE triggered_by IN (SELECT id FROM users WHERE role = 'super_admin');" > /dev/null
-        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM camps WHERE organizer_id IN (SELECT id FROM users WHERE role = 'super_admin');" > /dev/null
-        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM users WHERE role = 'super_admin';" > /dev/null
+        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM backups WHERE triggered_by IN (SELECT id FROM users WHERE role = 'SUPER_ADMIN');" > /dev/null
+        # Les clés étrangères n'ont pas de ON DELETE CASCADE en base (la cascade est gérée par l'ORM) :
+        # on supprime d'abord les lignes qui dépendent des camps du super admin.
+        for table in registrations camp_modalities landing_pages contact_messages; do
+            $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM $table WHERE camp_id IN (SELECT c.id FROM camps c JOIN users u ON u.id = c.organizer_id WHERE u.role = 'SUPER_ADMIN');" > /dev/null
+        done
+        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM camps WHERE organizer_id IN (SELECT id FROM users WHERE role = 'SUPER_ADMIN');" > /dev/null
+        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM users WHERE role = 'SUPER_ADMIN';" > /dev/null
         
         log_info "Création du nouveau Super Admin..."
         $CONTAINER_CMD exec backend python -c "
-from app.database import SessionLocal
-from app.models import UserRole, UserStatus
-from app.schemas.user import UserCreate
-from app.services.user_service import UserService
+from app.core.security import hash_password
+from app.db.session import SessionLocal
+from app.models import User, UserRole, UserStatus
 
 db = SessionLocal()
 try:
-    user = UserService(db).create(UserCreate(
+    db.add(User(
         first_name='Admin',
         last_name='CampOrga',
         email='admin@camporga.fr',
-        password='ChangeMe123!',
+        password_hash=hash_password('ChangeMe123!'),
         role=UserRole.SUPER_ADMIN,
+        status=UserStatus.ACTIVE,
     ))
-    user.status = UserStatus.ACTIVE
     db.commit()
     print('✅ Super Admin recréé avec succès.')
     print('   📧 Email    : admin@camporga.fr')
     print('   🔑 Password : ChangeMe123!')
     print('   📊 Statut   : active')
+except Exception as e:
+    print(f'❌ Erreur : {e}')
 finally:
     db.close()
 "
@@ -251,8 +259,7 @@ do_frontend_stop() {
 # --- Formatage ---
 do_format() {
     log_info "Formatage du code Python..."
-    $CONTAINER_CMD exec backend ruff check --fix app tests
-    $CONTAINER_CMD exec backend black app tests
+    $CONTAINER_CMD exec backend sh -c "pip install -q ruff black && ruff check --fix app tests && black app tests"
     log_info "✅ Code formaté."
 }
 

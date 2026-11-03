@@ -10,3 +10,26 @@ def test_health_check(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_readiness_check(client):
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready", "database": "connected"}
+
+
+def test_frontend_origin_cors_preflight(client):
+    response = client.options(
+        "/api/public/camps",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_cors_exposes_content_disposition_for_downloads(client):
+    response = client.get("/health", headers={"Origin": "http://localhost:5173"})
+    assert "content-disposition" in response.headers.get("access-control-expose-headers", "").lower()

@@ -1,82 +1,62 @@
 """
-Modèles Camp et CampModality — la table centrale du schéma et ses critères
-d'éligibilité.
+Modèle Camp : la table centrale de CampOrga.
+
+Un camp appartient à un organisateur (users) et regroupe ses modalités,
+sa landing page, ses inscriptions et ses messages de contact.
+cascade="all, delete-orphan" : supprimer un camp supprime aussi tout ce
+qui en dépend, sans laisser de lignes orphelines.
 """
+import enum
 import uuid
 
-from sqlalchemy import (
-    Column, String, Text, Date, Integer, SmallInteger, DateTime,
-    ForeignKey, CheckConstraint,
-)
+from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Integer, SmallInteger, String, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
 
-from app.database import Base, pg_enum
-from app.models.enums import CampStatus, ModalityType
+from app.db.base_class import Base
+
+
+class CampStatus(str, enum.Enum):
+    DRAFT = "draft"          # en préparation, invisible du public
+    PUBLISHED = "published"  # visible, inscriptions ouvertes
+    ARCHIVED = "archived"    # terminé, conservé pour l'historique
 
 
 class Camp(Base):
     __tablename__ = "camps"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organizer_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="RESTRICT"),
-        nullable=False,
-        index=True,
-    )
-    name = Column(String(150), nullable=False)
-    slug = Column(String(160), nullable=False, unique=True, index=True)
-    description = Column(Text)
+    organizer_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    name = Column(String, nullable=False)
+    # Le slug sert d'URL publique (ex. /camps/code-explorers-ete-2026) ;
+    # l'index unique garantit qu'il n'y a pas deux camps à la même adresse.
+    slug = Column(String, unique=True, index=True, nullable=False)
+    description = Column(Text, nullable=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
-    city = Column(String(100))
-    age = Column(SmallInteger)
-    capacity = Column(Integer, nullable=False, default=0)
-    price = Column(Integer, nullable=False, default=0)  # <-- Ajouté : prix en centimes
-    status = Column(
-        pg_enum(CampStatus, "camp_status"),
-        nullable=False,
-        default=CampStatus.DRAFT,
-        index=True,
-    )
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-
-    __table_args__ = (
-        CheckConstraint("end_date >= start_date", name="ck_camps_dates"),
-    )
+    city = Column(String, nullable=False)
+    # Âge minimum requis ("à partir de X ans") ; NULL = ouvert à tous les âges.
+    # Les conditions plus fines (tranche d'âge, niveau) vont dans les modalités.
+    age = Column(SmallInteger, nullable=True)
+    capacity = Column(Integer, nullable=False)
+    status = Column(Enum(CampStatus), default=CampStatus.DRAFT, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organizer = relationship("User", back_populates="camps")
-    modalities = relationship(
-        "CampModality", back_populates="camp", cascade="all, delete-orphan"
-    )
-    landing_page = relationship(
-        "LandingPage", back_populates="camp", uselist=False, cascade="all, delete-orphan"
-    )
-    registrations = relationship(
-        "Registration", back_populates="camp", cascade="all, delete-orphan"
-    )
-    contact_messages = relationship("ContactMessage", back_populates="camp")
+    registrations = relationship("Registration", back_populates="camp", cascade="all, delete-orphan")
+    modalities = relationship("CampModality", back_populates="camp", cascade="all, delete-orphan")
+    landing_page = relationship("LandingPage", back_populates="camp", uselist=False, cascade="all, delete-orphan")
+    messages = relationship("ContactMessage", back_populates="camp", cascade="all, delete-orphan")
 
-    def __repr__(self) -> str:
-        return f"<Camp {self.slug}>"
+    @property
+    def registrations_count(self) -> int:
+        """Nombre d'inscrits (calculé, non stocké : toujours à jour)."""
+        return len(self.registrations)
 
+    @property
+    def remaining_places(self) -> int:
+        """Places restantes affichées sur la landing page."""
+        return max(self.capacity - self.registrations_count, 0)
 
-class CampModality(Base):
-    __tablename__ = "camp_modalities"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    camp_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("camps.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    type = Column(pg_enum(ModalityType, "modality_type"), nullable=False)
-    label = Column(String(255), nullable=False)
-
-    camp = relationship("Camp", back_populates="modalities")
-
-    def __repr__(self) -> str:
-        return f"<CampModality {self.type.value}: {self.label}>"
+    def __repr__(self):
+        return f"<Camp id={self.id!r} name={self.name!r}>"

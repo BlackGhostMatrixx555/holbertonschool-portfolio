@@ -1,0 +1,97 @@
+erDiagram
+    USERS ||--o{ CAMPS : "organise"
+    USERS ||--o{ BACKUPS : "déclenche"
+    CAMPS ||--o{ CAMP_MODALITIES : "a"
+    CAMPS ||--|| LANDING_PAGES : "a"
+    CAMPS ||--o{ REGISTRATIONS : "reçoit"
+    CAMPS ||--o{ CONTACT_MESSAGES : "reçoit"
+    CAMPS |o..o{ MONGO_CHAT_CONVERSATIONS : "camp_id (MongoDB)"
+    USERS |o..o| MONGO_VERIFICATION_CODES : "user_id (MongoDB)"
+
+    USERS {
+        uuid id PK
+        string first_name
+        string last_name
+        string email UK
+        string password_hash
+        string phone_number
+        enum role
+        enum status
+        string totp_secret
+        boolean is_2fa_enabled
+        timestamp created_at
+    }
+    CAMPS {
+        uuid id PK
+        uuid organizer_id FK
+        string name
+        string slug UK
+        text description
+        date start_date
+        date end_date
+        string city
+        smallint age "nullable"
+        int capacity
+        enum status
+        timestamp created_at
+    }
+    BACKUPS {
+        uuid id PK
+        uuid triggered_by FK
+        enum format
+        string file_path
+        int file_size_kb
+        timestamp created_at
+    }
+    CAMP_MODALITIES {
+        uuid id PK
+        uuid camp_id FK
+        enum type
+        string label
+    }
+    LANDING_PAGES {
+        uuid id PK
+        uuid camp_id FK "unique"
+        enum season_theme
+        string hero_title
+        text hero_description
+        timestamp published_at
+    }
+    REGISTRATIONS {
+        uuid id PK
+        uuid camp_id FK
+        string first_name
+        string last_name
+        string email
+        text comment
+        boolean confirmed
+        timestamp created_at
+    }
+    CONTACT_MESSAGES {
+        uuid id PK
+        uuid camp_id FK
+        string name
+        string email
+        text message
+        enum channel
+        enum status
+        timestamp created_at
+    }
+    MONGO_CHAT_CONVERSATIONS {
+        objectId _id PK
+        string session_id UK
+        string camp_id "ref camps.id"
+        string camp_slug
+        array messages "role, content, intent, at"
+        date created_at
+        date updated_at "TTL 90 jours"
+    }
+    MONGO_VERIFICATION_CODES {
+        objectId _id PK
+        string user_id UK "ref users.id"
+        string method "email | sms"
+        string code_hash "SHA-256"
+        int attempts
+        date created_at
+        date expires_at "TTL 5 min"
+    }

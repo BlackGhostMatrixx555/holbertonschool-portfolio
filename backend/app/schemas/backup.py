@@ -1,28 +1,23 @@
-"""
-Schémas Pydantic pour les backups.
-"""
-import uuid
+"""Schémas de l'historique des sauvegardes."""
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import BackupFormat
+from app.models import BackupFormat
 
 
 class BackupCreate(BaseModel):
-    """Données envoyées pour déclencher un backup."""
-
     format: BackupFormat
 
 
-class BackupRead(BaseModel):
-    """Backup tel que renvoyé par l'API."""
+class BackupView(BaseModel):
+    """Une sauvegarde de l'historique (le chemin sur le serveur n'est pas exposé)."""
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
+    id: UUID
     format: BackupFormat
-    triggered_by: uuid.UUID
-    file_path: str
+    triggered_by: UUID
     file_size_kb: int | None
-    created_at: datetime
+    created_at: datetime | None
