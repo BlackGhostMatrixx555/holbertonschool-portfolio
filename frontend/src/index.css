@@ -1,3 +1,4 @@
+/* Importe Tailwind CSS v4 : injecte les classes utilitaires et les styles de base de Tailwind. */
 @import "tailwindcss";
 
 /*
@@ -6,51 +7,67 @@
  * via les classes Tailwind générées (bg-navy-900, text-coral-600...).
  * Contrastes vérifiés WCAG AA : texte navy-900 sur sand-50, blanc sur coral-600.
  */
+
+/* Bloc @theme (spécifique à Tailwind v4) : définit les design tokens.
+   Chaque variable --color-xxx génère automatiquement les classes bg-xxx, text-xxx, border-xxx, etc.
+   Chaque variable --font-xxx génère la classe font-xxx. */
 @theme {
+  /* Police de texte principale, avec une liste de polices de repli si "Inter" n'est pas disponible. */
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Police des titres (classe font-display), utilisée par les h1, h2, h3 plus bas. */
   --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
 
+  /* Palette "navy" : bleu nuit, couleur principale de la marque. Numéro croissant = plus sombre. */
   --color-navy-50: #eef0f8;
   --color-navy-100: #d9ddef;
   --color-navy-500: #4a5590;
   --color-navy-700: #2a3570;
-  --color-navy-900: #1b2454;
+  --color-navy-900: #1b2454; /* teinte de référence, aussi utilisée pour theme-color dans index.html */
   --color-navy-950: #11173a;
 
+  /* Palette "coral" : corail, couleur d'accent (boutons d'action, focus). */
   --color-coral-100: #fde3e4;
   --color-coral-400: #f9646a;
   --color-coral-600: #c9353c;
   --color-coral-700: #a92a31;
 
+  /* Palette "sand" : beige clair, utilisé comme fond de page. */
   --color-sand-50: #fbf8f3;
   --color-sand-100: #f4eee3;
 
-  /* Thèmes saisonniers des landing pages */
-  --color-summer: #f59e0b;
+  /* Thèmes saisonniers des landing pages : une couleur vive et sa version pastel pour chaque saison. */
+  --color-summer: #f59e0b;        /* ambre */
   --color-summer-soft: #fef3c7;
-  --color-autumn: #c2410c;
+  --color-autumn: #c2410c;        /* orange brûlé */
   --color-autumn-soft: #ffedd5;
-  --color-winter: #0369a1;
+  --color-winter: #0369a1;        /* bleu glacier */
   --color-winter-soft: #e0f2fe;
-  --color-spring: #15803d;
+  --color-spring: #15803d;        /* vert */
   --color-spring-soft: #dcfce7;
 }
 
+/* Couche "base" : styles globaux appliqués aux éléments HTML, injectés dans l'ordre de cascade de Tailwind. */
 @layer base {
+  /* Style de la racine de la page. @apply applique des classes utilitaires comme des propriétés CSS. */
   html {
-    @apply bg-sand-50 text-navy-900 antialiased;
+    @apply bg-sand-50 text-navy-900 antialiased; /* fond beige, texte bleu nuit, lissage des polices */
   }
 
+  /* Tous les titres utilisent la police display et un interlettrage légèrement resserré. */
   h1, h2, h3 {
     @apply font-display tracking-tight;
   }
 
-  /* Focus clavier toujours visible (accessibilité) */
+  /* Focus clavier toujours visible (accessibilité) : contour corail lors de la navigation au clavier (Tab).
+     :focus-visible ne s'active qu'au clavier, pas au clic souris. */
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-coral-600;
   }
 
-  /* Respect de la préférence "réduire les animations" */
+  /* Respect de la préférence "réduire les animations" (accessibilité, ex. personnes sensibles au mouvement).
+     Si l'utilisateur l'a activée dans son système, les animations et transitions sont quasi supprimées.
+     !important est nécessaire pour outrepasser les classes utilitaires d'animation. */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
