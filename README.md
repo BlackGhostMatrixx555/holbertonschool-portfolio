@@ -177,8 +177,9 @@ Toute la documentation détaillée (rapports Holberton, schéma de données, pr�
 |---|---|
 | Thélyaan Dufrénoy | Fullstack Developer / Lead (+ Frontend) |
 | Collins Odi Obi | Backend / DevOps Developer (+ Frontend) |
+| Quentin Moussous | Frontend |
 
-> Équipe initialement composée de 3 personnes ; Harold NGuementa s'est retiré du projet. Le frontend est désormais partagé entre les deux membres restants.
+> Équipe initialement composée de 3 personnes ; Harold NGuementa s'est retiré du projet. 
 
 ## 🗺️ Roadmap
 
