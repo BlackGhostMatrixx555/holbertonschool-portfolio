@@ -31,3 +31,4 @@ dist/
 
 # --- Sauvegardes générées (contiennent des données personnelles) ---
 backend/backups/
+scripts/rapports/
