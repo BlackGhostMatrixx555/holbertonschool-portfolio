@@ -10,13 +10,20 @@ set -e
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-BLUE='\033[0;34m'
-BOLD='\033[1m'
 NC='\033[0m'
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+
+# --- Port occupé ? (lsof si disponible, sinon ss) ---
+port_in_use() {
+    if command -v lsof &> /dev/null; then
+        lsof -ti:"$1" > /dev/null 2>&1
+    else
+        ss -ltn "sport = :$1" 2>/dev/null | grep -q LISTEN
+    fi
+}
 
 # --- Détection de l'outil de conteneurisation ---
 detect_container_tool() {
@@ -47,8 +54,8 @@ check_env() {
         gen() { python3 -c "import secrets; print(secrets.token_urlsafe($1))"; }
         sed -i "s/^SECRET_KEY=.*/SECRET_KEY=$(gen 48)/" .env
         sed -i "s/^MONGO_PASSWORD=.*/MONGO_PASSWORD=$(gen 24)/" .env
-        sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=camporga/" .env
-        log_info "Fichier .env créé (SECRET_KEY et MONGO_PASSWORD générés)."
+        sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(gen 24)/" .env
+        log_info "Fichier .env créé (SECRET_KEY, POSTGRES_PASSWORD et MONGO_PASSWORD générés)."
     fi
 }
 
@@ -56,7 +63,7 @@ check_env() {
 wait_for_db() {
     log_info "Attente que la base de données soit prête..."
     local retries=30
-    until $CONTAINER_CMD exec -T db pg_isready -U camporga > /dev/null 2>&1; do
+    until $CONTAINER_CMD exec -T db sh -c 'pg_isready -U "$POSTGRES_USER"' > /dev/null 2>&1; do
         sleep 1
         retries=$((retries - 1))
         if [ $retries -eq 0 ]; then
@@ -72,7 +79,7 @@ wait_for_db() {
 # --- Commandes Backend ---
 do_start() {
     check_env
-    log_info "Démarrage de PostgreSQL et FastAPI..."
+    log_info "Démarrage de PostgreSQL, MongoDB et FastAPI..."
     $CONTAINER_CMD up -d --build
 
     wait_for_db
@@ -117,7 +124,8 @@ do_test() {
     log_info "Préparation de la base de test (camporga_test)..."
     $CONTAINER_CMD exec -T db sh -c 'psql -U "$POSTGRES_USER" -tAc "SELECT 1 FROM pg_database WHERE datname='"'"'camporga_test'"'"'" | grep -q 1 || createdb -U "$POSTGRES_USER" camporga_test'
     log_info "Lancement de la suite de tests..."
-    $CONTAINER_CMD exec -e DATABASE_URL="postgresql://camporga:camporga@db:5432/camporga_test" backend pytest --cov=app --cov-report=term-missing
+    # On reprend l'URL du backend (identifiants du .env) en remplaçant seulement le nom de la base.
+    $CONTAINER_CMD exec backend sh -c 'DATABASE_URL="${DATABASE_URL%/*}/camporga_test" pytest --cov=app --cov-report=term-missing'
 }
 
 do_admin() {
@@ -135,7 +143,12 @@ try:
         print('NOT_FOUND')
 finally:
     db.close()
-" 2>/dev/null | grep -E "^(EXISTS|NOT_FOUND)")
+" 2>/dev/null | grep -E "^(EXISTS|NOT_FOUND)" || true)
+
+    if [ -z "$ADMIN_EXISTS" ]; then
+        log_error "Impossible d'interroger la base : le backend est-il démarré ? (./camporga.sh start)"
+        exit 1
+    fi
 
     if [[ "$ADMIN_EXISTS" == EXISTS* ]]; then
         IFS='|' read -r _ email full_name status <<< "$ADMIN_EXISTS"
@@ -143,8 +156,10 @@ finally:
         echo -e "   📧 Email : ${GREEN}${email}${NC}"
         echo -e "   👤 Nom   : ${full_name}"
         echo -e "   📊 Statut : ${status}"
-        echo -e "   🔑 Password par défaut : ${GREEN}ChangeMe123!${NC}"
-        echo -e "   (Si vous l'avez changé, utilisez admin-reset pour le réinitialiser)"
+        if [ "$email" = "admin@camporga.fr" ]; then
+            echo -e "   🔑 Password par défaut : ${GREEN}ChangeMe123!${NC} (s'il n'a pas été changé)"
+        fi
+        echo -e "   (Mot de passe perdu ? ./camporga.sh admin-reset recrée admin@camporga.fr)"
     else
         log_info "Aucun Super Admin trouvé. Création du compte par défaut..."
         $CONTAINER_CMD exec backend python -c "
@@ -181,14 +196,14 @@ do_admin_reset() {
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         log_info "Suppression des données liées au Super Admin..."
-        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM backups WHERE triggered_by IN (SELECT id FROM users WHERE role = 'SUPER_ADMIN');" > /dev/null
+        $CONTAINER_CMD exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$0"' "DELETE FROM backups WHERE triggered_by IN (SELECT id FROM users WHERE role = 'SUPER_ADMIN');" > /dev/null
         # Les clés étrangères n'ont pas de ON DELETE CASCADE en base (la cascade est gérée par l'ORM) :
         # on supprime d'abord les lignes qui dépendent des camps du super admin.
         for table in registrations camp_modalities landing_pages contact_messages; do
-            $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM $table WHERE camp_id IN (SELECT c.id FROM camps c JOIN users u ON u.id = c.organizer_id WHERE u.role = 'SUPER_ADMIN');" > /dev/null
+            $CONTAINER_CMD exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$0"' "DELETE FROM $table WHERE camp_id IN (SELECT c.id FROM camps c JOIN users u ON u.id = c.organizer_id WHERE u.role = 'SUPER_ADMIN');" > /dev/null
         done
-        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM camps WHERE organizer_id IN (SELECT id FROM users WHERE role = 'SUPER_ADMIN');" > /dev/null
-        $CONTAINER_CMD exec -T db psql -U camporga -c "DELETE FROM users WHERE role = 'SUPER_ADMIN';" > /dev/null
+        $CONTAINER_CMD exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$0"' "DELETE FROM camps WHERE organizer_id IN (SELECT id FROM users WHERE role = 'SUPER_ADMIN');" > /dev/null
+        $CONTAINER_CMD exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$0"' "DELETE FROM users WHERE role = 'SUPER_ADMIN';" > /dev/null
         
         log_info "Création du nouveau Super Admin..."
         $CONTAINER_CMD exec backend python -c "
@@ -233,7 +248,7 @@ do_frontend() {
         cd frontend && npm install && cd ..
     fi
 
-    if lsof -ti:5173 > /dev/null 2>&1; then
+    if port_in_use 5173; then
         log_warn "Le port 5173 est déjà utilisé. Un serveur Vite tourne peut-être déjà."
         log_info "Pour l'arrêter : ./camporga.sh frontend-stop"
         exit 1
@@ -246,13 +261,17 @@ do_frontend() {
 }
 
 do_frontend_stop() {
-    if ! lsof -ti:5173 > /dev/null 2>&1; then
+    if ! port_in_use 5173; then
         log_info "Aucun serveur Vite ne tourne sur le port 5173."
         return
     fi
 
     log_info "Arrêt du serveur Vite (port 5173)..."
-    lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+    if command -v lsof &> /dev/null; then
+        lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+    else
+        fuser -k 5173/tcp > /dev/null 2>&1 || true
+    fi
     log_info "✅ Frontend arrêté."
 }
 
@@ -273,7 +292,7 @@ do_logs() {
 do_ps() {
     $CONTAINER_CMD ps
     echo ""
-    if lsof -ti:5173 > /dev/null 2>&1; then
+    if port_in_use 5173; then
         log_info "Frontend : ✅ Vite tourne sur le port 5173"
     else
         log_info "Frontend : ⏹️  Vite n'est pas lancé"
@@ -297,10 +316,10 @@ case "$1" in
     *)
         echo "Usage: $0 {start|stop|restart|cleanup|test|admin|admin-reset|frontend|frontend-stop|format|logs|ps}"
         echo ""
-        echo "  start          : Démarre les services backend + DB"
-        echo "  stop           : Arrête les services backend + DB"
+        echo "  start          : Démarre PostgreSQL + MongoDB + API (et applique les migrations)"
+        echo "  stop           : Arrête PostgreSQL + MongoDB + API (données conservées)"
         echo "  restart        : Redémarre le backend"
-        echo "  cleanup        : Détruit tout (conteneurs + base)"
+        echo "  cleanup        : Détruit tout (conteneurs + volumes : données supprimées)"
         echo "  test           : Lance la suite de tests avec couverture"
         echo "  admin          : Crée le Super Admin (ou affiche celui qui existe)"
         echo "  admin-reset    : Supprime et recrée le Super Admin"
