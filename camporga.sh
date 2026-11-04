@@ -243,9 +243,13 @@ do_frontend() {
         exit 1
     fi
 
-    if [ ! -d "frontend/node_modules" ]; then
-        log_warn "Les dépendances npm ne sont pas installées. Installation..."
-        cd frontend && npm install && cd ..
+    # Installe les dépendances si node_modules est absent OU plus ancien que
+    # package.json / package-lock.json (ex. après un git pull ou un merge).
+    if [ ! -d "frontend/node_modules" ] \
+       || [ "frontend/package.json" -nt "frontend/node_modules/.package-lock.json" ] \
+       || [ "frontend/package-lock.json" -nt "frontend/node_modules/.package-lock.json" ]; then
+        log_warn "Les dépendances npm sont absentes ou obsolètes. Installation..."
+        (cd frontend && npm install) || { log_error "Échec de npm install."; exit 1; }
     fi
 
     if port_in_use 5173; then
