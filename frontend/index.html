@@ -1,34 +1,15 @@
-<!-- Déclaration du type de document : indique au navigateur qu'il s'agit d'HTML5. -->
 <!doctype html>
-
-<!-- Élément racine de la page. L'attribut lang="fr" indique la langue du contenu (utile aux lecteurs d'écran, au SEO et à la traduction automatique). -->
 <html lang="fr">
   <head>
-    <!-- Métadonnées invisibles pour l'utilisateur, lues par le navigateur et les moteurs de recherche. -->
-
-    <!-- Encodage des caractères UTF-8 : indispensable pour afficher correctement les accents français. -->
     <meta charset="UTF-8" />
-
-    <!-- Icône de l'onglet du navigateur. type="image/svg+xml" précise le format ; href pointe vers le fichier à la racine du dossier public (servi tel quel par Vite). -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-
-    <!-- Viewport : adapte la mise en page à la largeur de l'écran (indispensable pour le responsive sur mobile). width=device-width fixe la largeur sur celle de l'appareil ; initial-scale=1.0 évite le zoom par défaut. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <!-- Description de la page, affichée dans les résultats de recherche Google et les aperçus de partage. -->
     <meta name="description" content="CampOrga : découvrez les summer camps de code et inscrivez-vous en quelques clics." />
-
-    <!-- Couleur de la barre d'adresse sur mobile (Chrome/Android, Safari récent). #1b2454 est un bleu nuit, cohérent avec l'identité visuelle. -->
     <meta name="theme-color" content="#1b2454" />
-
-    <!-- Titre de l'onglet et libellé dans l'historique et les favoris. Le tiret "–" est un tiret demi-cadratin. -->
     <title>CampOrga – Summer camps de code</title>
   </head>
   <body>
-    <!-- Conteneur vide dans lequel React monte toute l'application (voir main.tsx, createRoot(document.getElementById('root'))). -->
     <div id="root"></div>
-
-    <!-- Point d'entrée de l'application. type="module" active les imports ES natifs et diffère l'exécution après le parsing du HTML (pas besoin de "defer"). Vite transforme ce fichier TSX à la volée en dev et le bundle en production. -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

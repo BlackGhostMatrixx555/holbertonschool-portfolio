@@ -1,37 +1,38 @@
 """Création et publication de la landing page d'un camp."""
-from datetime import datetime, timezone  # datetime pour horodater la publication ; timezone.utc pour qu'elle soit en UTC.
-from uuid import UUID  # Type des identifiants des camps.
+from datetime import datetime, timezone
+from uuid import UUID
 
-from sqlalchemy.orm import Session  # Session SQLAlchemy pour interroger et modifier la base.
+from sqlalchemy.orm import Session
 
-from app.models import CampStatus, LandingPage, User  # Modèles utilisés : landing page, statut du camp, utilisateur.
-from app.schemas.landing_page import LandingPageUpdate  # Schéma des données envoyées pour mettre à jour la page.
-from app.services.camp_service import get_managed_camp  # Récupère le camp en vérifiant que l'utilisateur peut le gérer.
+from app.models import CampStatus, LandingPage, User
+from app.schemas.landing_page import LandingPageUpdate
+from app.services.camp_service import get_managed_camp
 
-def upsert_landing_page(db: Session, camp_id: UUID, payload: LandingPageUpdate, user: User) -> LandingPage:  # Crée ou met à jour la landing page.
+
+def upsert_landing_page(db: Session, camp_id: UUID, payload: LandingPageUpdate, user: User) -> LandingPage:
     """
     Crée la landing page si elle n'existe pas, sinon la met à jour ("upsert").
     Publier la page publie aussi le camp, ce qui ouvre les inscriptions.
     """
-    camp = get_managed_camp(db, camp_id, user)  # Récupère le camp et vérifie les droits de l'utilisateur.
+    camp = get_managed_camp(db, camp_id, user)
 
-    landing_page = camp.landing_page  # Page existante liée au camp, ou None si elle n'a jamais été créée.
-    if landing_page is None:  # Première fois : on crée la page.
-        landing_page = LandingPage(camp_id=camp.id)  # Lie la page au camp.
-        db.add(landing_page)  # Prépare l'insertion en base.
+    landing_page = camp.landing_page
+    if landing_page is None:
+        landing_page = LandingPage(camp_id=camp.id)
+        db.add(landing_page)
 
-    landing_page.season_theme = payload.season_theme  # Met à jour le thème de saison.
-    landing_page.hero_title = payload.hero_title  # Met à jour le titre principal.
-    landing_page.hero_description = payload.hero_description  # Met à jour la description.
+    landing_page.season_theme = payload.season_theme
+    landing_page.hero_title = payload.hero_title
+    landing_page.hero_description = payload.hero_description
 
-    if payload.publish:  # L'utilisateur demande la publication.
+    if payload.publish:
         # On garde la date de première publication si la page était déjà en ligne.
-        landing_page.published_at = landing_page.published_at or datetime.now(timezone.utc)  # Ne remplace pas la date si elle existe déjà.
-        camp.status = CampStatus.PUBLISHED  # Le camp devient visible et ouvert aux inscriptions.
-    else:  # Demande de repasser en brouillon.
-        landing_page.published_at = None  # Retire la date de publication.
-        camp.status = CampStatus.DRAFT  # Le camp n'est plus visible ni ouvert aux inscriptions.
+        landing_page.published_at = landing_page.published_at or datetime.now(timezone.utc)
+        camp.status = CampStatus.PUBLISHED
+    else:
+        landing_page.published_at = None
+        camp.status = CampStatus.DRAFT
 
-    db.commit()  # Enregistre les modifications en base.
-    db.refresh(landing_page)  # Recharge la page depuis la base pour récupérer les valeurs à jour.
-    return landing_page  # Renvoie la page créée ou mise à jour.
+    db.commit()
+    db.refresh(landing_page)
+    return landing_page
