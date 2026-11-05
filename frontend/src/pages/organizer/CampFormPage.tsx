@@ -1,7 +1,7 @@
 /**
  * Création et modification d'un camp (même formulaire, deux modes).
  * Les règles de validation reprennent celles de l'API : dates cohérentes,
- * âge minimum ≤ âge maximum, capacité ≥ 1.
+ * un seul âge minimum entre 0 et 99 (vide = tous âges), capacité ≥ 1.
  */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -50,6 +50,7 @@ export function CampFormPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
+  // En création, pas de camp à charger : la requête est désactivée (enabled: false).
   const campQuery = useQuery({
     queryKey: ['camp', campId],
     queryFn: () => fetchCamp(campId!),
@@ -76,6 +77,8 @@ export function CampFormPage() {
     onSuccess: (camp) => {
       void queryClient.invalidateQueries({ queryKey: ['camps'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      // On met directement en cache le camp renvoyé par l'API : la page suivante
+      // l'affiche tout de suite, sans nouvel appel réseau.
       queryClient.setQueryData(['camp', camp.id], camp)
       navigate(`/espace/camps/${camp.id}`)
     },

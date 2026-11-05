@@ -130,6 +130,8 @@ function LandingTab({ camp }: { camp: Camp }) {
     mutationFn: ({ values, publish }: { values: LandingValues; publish: boolean }) =>
       saveLandingPage(camp.id, { ...values, hero_description: values.hero_description.trim() || null, publish }),
     onSuccess: () => {
+      // Publier change le statut du camp : on recharge toutes les vues qui l'affichent
+      // (camp, liste, tableau de bord, page d'accueil publique).
       void queryClient.invalidateQueries({ queryKey: ['camp', camp.id] })
       void queryClient.invalidateQueries({ queryKey: ['camps'] })
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
@@ -190,6 +192,7 @@ function LandingTab({ camp }: { camp: Camp }) {
 function MessagesTab({ camp }: { camp: Camp }) {
   const queryClient = useQueryClient()
   const messages = useQuery({ queryKey: ['messages', camp.id], queryFn: () => fetchMessages(camp.id), staleTime: 0 })
+  // Passer un message en « lu » ou « archivé », puis recharger la liste.
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: MessageStatus }) => setMessageStatus(id, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['messages', camp.id] }),
@@ -240,6 +243,7 @@ function MessagesTab({ camp }: { camp: Camp }) {
 // ---- Onglet Chatbot (données MongoDB) -----------------------------------------
 
 function ChatTab({ camp }: { camp: Camp }) {
+  // Deux appels : les statistiques (agrégation MongoDB par intention) et les conversations.
   const stats = useQuery({ queryKey: ['chat-stats', camp.id], queryFn: () => fetchChatStats(camp.id), staleTime: 0 })
   const conversations = useQuery({
     queryKey: ['conversations', camp.id],

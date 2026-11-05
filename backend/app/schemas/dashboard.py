@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 
 class CampCounts(BaseModel):
+    """Nombre de camps par statut."""
+
     total: int
     draft: int
     published: int
@@ -17,6 +19,8 @@ class RegistrationCounts(BaseModel):
 
 
 class RecentRegistration(BaseModel):
+    """Une inscription récente, affichée dans le tableau de bord."""
+
     id: UUID
     camp_id: UUID
     first_name: str
@@ -26,6 +30,8 @@ class RecentRegistration(BaseModel):
 
 
 class DashboardSummary(BaseModel):
+    """Réponse complète de GET /api/dashboard/summary."""
+
     camps: CampCounts
     registrations: RegistrationCounts
     recent_registrations: list[RecentRegistration]

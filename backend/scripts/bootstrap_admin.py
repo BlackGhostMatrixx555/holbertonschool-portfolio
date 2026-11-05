@@ -1,3 +1,9 @@
+"""
+Création du premier super admin (script d'initialisation).
+
+Usage : docker compose exec backend python -m scripts.bootstrap_admin
+(avec BOOTSTRAP_ADMIN_EMAIL et BOOTSTRAP_ADMIN_PASSWORD définis dans le .env).
+"""
 import os
 import sys
 
@@ -9,11 +15,14 @@ from app.models import User, UserRole, UserStatus
 
 
 def main() -> int:
+    """Crée le super admin s'il n'existe pas. Code de retour 0 = succès."""
+    # Identifiants lus dans l'environnement (.env) : jamais écrits dans le code.
     email = os.environ.get("BOOTSTRAP_ADMIN_EMAIL", "").strip()
     password = os.environ.get("BOOTSTRAP_ADMIN_PASSWORD", "")
     first_name = os.environ.get("BOOTSTRAP_ADMIN_FIRST_NAME", "Super").strip()
     last_name = os.environ.get("BOOTSTRAP_ADMIN_LAST_NAME", "Admin").strip()
 
+    # Même règle que l'API : 12 caractères minimum.
     if not email or len(password) < 12:
         print(
             "Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD "
@@ -24,6 +33,7 @@ def main() -> int:
 
     db = SessionLocal()
     try:
+        # Script idempotent : le relancer ne crée pas de doublon.
         existing = db.query(User).filter(User.email == email).first()
         if existing is not None:
             if existing.role != UserRole.SUPER_ADMIN:

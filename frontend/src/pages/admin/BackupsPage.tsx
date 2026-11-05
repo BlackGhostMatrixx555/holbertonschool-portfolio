@@ -25,6 +25,8 @@ export function BackupsPage() {
     mutationFn: (format: BackupFormat) => createBackup(format),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
   })
+  // Le fichier est reçu en blob (le jeton JWT est dans l'en-tête, un simple lien ne suffirait pas),
+  // puis enregistré avec le nom fourni par l'API.
   const download = useMutation({
     mutationFn: downloadBackup,
     onSuccess: ({ blob, filename }) => saveFile(blob, filename),

@@ -24,7 +24,7 @@ export function ContactForm({ slug }: { slug: string }) {
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) => sendContactMessage(slug, values),
-    onSuccess: () => reset(),
+    onSuccess: () => reset(), // message envoyé : le formulaire est vidé
   })
 
   return (

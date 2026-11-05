@@ -159,6 +159,8 @@ function VerificationCard({ user }: { user: User }) {
 
 function TwoFactorCard({ user }: { user: User }) {
   const { refreshUser } = useAuth()
+  // Activation en 2 temps : 1) l'API génère le secret et le QR code (setup),
+  // 2) l'utilisateur scanne et confirme avec un premier code (enable).
   const [setup, setSetup] = useState<TwoFactorSetup | null>(null)
   const start = useMutation({ mutationFn: setupTwoFactor, onSuccess: setSetup })
   const enable = useMutation({
@@ -168,6 +170,7 @@ function TwoFactorCard({ user }: { user: User }) {
       await refreshUser()
     },
   })
+  // La désactivation demande aussi un code valide (vérifié par l'API).
   const disable = useMutation({ mutationFn: disableTwoFactor, onSuccess: () => refreshUser() })
   const error = start.error ?? enable.error ?? disable.error
 
@@ -216,6 +219,7 @@ function TwoFactorCard({ user }: { user: User }) {
 
 function DeleteAccountCard() {
   const { logout } = useAuth()
+  // Compte supprimé : on ferme la session. L'API refuse (409) tant que le compte gère des camps.
   const mutation = useMutation({ mutationFn: deleteMe, onSuccess: logout })
   return (
     <Card className="ring-coral-100">

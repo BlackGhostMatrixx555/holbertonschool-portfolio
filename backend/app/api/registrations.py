@@ -23,6 +23,7 @@ def register_for_camp(slug: str, payload: RegistrationCreate, db: Session = Depe
 def list_camp_registrations(
     camp_id: UUID, current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ):
+    """Organisateur du camp ou super admin : liste des inscrits."""
     return registration_service.list_for_camp(db, camp_id, current_user)
 
 
@@ -31,4 +32,5 @@ def update_attendance(
     registration_id: UUID, payload: AttendanceUpdate,
     current_user: User = Depends(get_current_user), db: Session = Depends(get_db),
 ):
+    """Coche ou décoche la présence d'un inscrit."""
     return registration_service.set_attendance(db, registration_id, payload.confirmed, current_user)

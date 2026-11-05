@@ -32,6 +32,7 @@ function CreateUserForm() {
   const mutation = useMutation({
     mutationFn: createUser,
     onSuccess: () => {
+      // On vide le formulaire et on recharge la liste pour afficher le nouveau compte.
       reset()
       void queryClient.invalidateQueries({ queryKey: ['users'] })
     },
@@ -82,6 +83,7 @@ export function UsersPage() {
   const { user: currentUser } = useAuth()
   const queryClient = useQueryClient()
   const users = useQuery({ queryKey: ['users'], queryFn: fetchUsers })
+  // Après chaque modification (rôle, statut, suppression), la liste est rechargée depuis l'API.
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['users'] })
   const roleMutation = useMutation({
     mutationFn: ({ id, role }: { id: string; role: UserRole }) => setUserRole(id, role),
@@ -92,6 +94,7 @@ export function UsersPage() {
     onSuccess: invalidate,
   })
   const deleteMutation = useMutation({ mutationFn: deleteUser, onSuccess: invalidate })
+  // Une seule zone d'erreur pour les trois actions (ex. 409 si on modifie son propre rôle).
   const error = roleMutation.error ?? statusMutation.error ?? deleteMutation.error
   // Comptes créés par l'inscription publique, en attente de validation.
   const pending = users.data?.filter((user) => user.status === 'inactive').length ?? 0

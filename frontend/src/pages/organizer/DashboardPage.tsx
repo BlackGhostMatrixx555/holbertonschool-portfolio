@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/useAuth'
 import { Alert, Card, EmptyState, LinkButton, PageHeader, Spinner, StatusBadge } from '../../components/ui'
 import { formatDateTime, formatRange } from '../../lib/format'
 
+/** Carte d'indicateur : un libellé et un grand nombre. */
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-navy-100">
@@ -17,8 +18,10 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 export function DashboardPage() {
   const { user } = useAuth()
+  // staleTime: 0 : les chiffres sont rechargés à chaque visite de la page.
   const summary = useQuery({ queryKey: ['dashboard'], queryFn: fetchDashboard, staleTime: 0 })
   const camps = useQuery({ queryKey: ['camps'], queryFn: fetchCamps, staleTime: 0 })
+  // Table id → nom, pour afficher le nom du camp à côté de chaque inscription récente.
   const campNames = new Map(camps.data?.map((camp) => [camp.id, camp.name]))
 
   return (

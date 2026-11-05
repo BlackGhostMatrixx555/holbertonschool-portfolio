@@ -1,3 +1,4 @@
+"""Modèle ContactMessage : messages de contact reçus par un camp."""
 import uuid
 import enum
 from sqlalchemy import Column, String, Text, Enum, DateTime, ForeignKey, func
@@ -6,16 +7,22 @@ from sqlalchemy.orm import relationship
 from app.db.base_class import Base
 
 class MessageStatus(str, enum.Enum):
+    """Suivi du message par l'organisateur : non lu, lu, archivé."""
+
     UNREAD = "unread"
     READ = "read"
     ARCHIVED = "archived"
 
 
 class ContactChannel(str, enum.Enum):
+    """Canal d'arrivée. Les conversations du chatbot sont, elles, stockées dans MongoDB."""
+
     HOTLINE = "hotline"
     CHATBOT = "chatbot"
 
 class ContactMessage(Base):
+    """Message envoyé depuis le formulaire de contact (hotline) d'une landing page."""
+
     __tablename__ = "contact_messages"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

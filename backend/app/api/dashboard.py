@@ -13,4 +13,5 @@ router = APIRouter(tags=["Tableau de bord"])
 
 @router.get("/dashboard/summary", response_model=DashboardSummary)
 def dashboard_summary(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Chiffres clés : un organisateur voit ses camps, le super admin voit tout."""
     return dashboard_service.summary(db, current_user)

@@ -1,3 +1,4 @@
+/** Page 404 : affichée pour toute URL qui ne correspond à aucune route (voir App.tsx). */
 import { LinkButton } from '../components/ui'
 
 export function NotFoundPage() {
