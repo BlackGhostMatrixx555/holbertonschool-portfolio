@@ -1,3 +1,10 @@
+"""
+Point d'entrée des modèles.
+
+Importer les modèles ici les enregistre tous dans Base.metadata : Alembic
+(autogénération des migrations) et les tests voient ainsi toutes les tables.
+Le reste du code importe depuis `app.models` plutôt que fichier par fichier.
+"""
 from app.models.user import User, UserRole, UserStatus
 from app.models.camp import Camp, CampStatus
 from app.models.registration import Registration

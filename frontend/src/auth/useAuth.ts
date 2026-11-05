@@ -1,18 +1,14 @@
-// useContext : lit la valeur fournie par un Context React, ici l'état d'authentification.
+/** Accès au contexte d'authentification, séparé du fichier du composant pour le rechargement rapide (Vite). */
 import { useContext } from 'react'
-// AuthContext : le contexte créé dans AuthContext.tsx. AuthState : le type de la valeur qu'il contient.
 import { AuthContext, type AuthState } from './AuthContext'
 
-// Hook personnalisé : donne accès à l'utilisateur connecté et aux fonctions d'authentification.
-// Son nom commence par "use" : c'est la convention qui permet à React de vérifier les règles des hooks.
+/** Donne accès à la session (utilisateur connecté, login, logout) depuis n'importe quel composant. */
 export function useAuth(): AuthState {
   const context = useContext(AuthContext)
-  // Garde-fou : si le composant n'est pas enveloppé par <AuthProvider>, le contexte vaut sa valeur par défaut
-  // (généralement null) et l'erreur signale l'oubli plutôt que de provoquer un bug plus loin.
+  // Erreur explicite si un composant est utilisé hors de <AuthProvider> (bug de développement).
   if (!context) throw new Error('useAuth doit être utilisé dans <AuthProvider>.')
   return context
 }
 
-// Vérifie si le rôle donné correspond au super administrateur.
-// Le paramètre accepte undefined, car l'utilisateur peut ne pas être encore chargé ou être déconnecté.
+/** Vrai si le rôle donne accès à l'administration (utilisateurs, sauvegardes). */
 export const isSuperAdmin = (role: string | undefined) => role === 'super_admin'

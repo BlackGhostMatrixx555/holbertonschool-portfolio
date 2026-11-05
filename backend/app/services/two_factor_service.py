@@ -11,74 +11,80 @@ Déroulé :
 3. login  : mot de passe -> jeton temporaire -> code -> jeton de session.
 4. disable: exige un code valide (sinon, un vol de session suffirait à la retirer).
 """
-import base64  # Encodage en base64, utilisé pour transmettre l'image du QR code sous forme de texte.
-import io  # Flux en mémoire, pour générer l'image sans écrire de fichier sur le disque.
-from uuid import UUID  # Type des identifiants des utilisateurs.
+import base64
+import io
+from uuid import UUID
 
-import pyotp  # Bibliothèque de calcul des codes TOTP.
-import qrcode  # Bibliothèque de génération de QR codes.
-from sqlalchemy.orm import Session  # Session SQLAlchemy pour interroger et modifier la base.
+import pyotp
+import qrcode
+from sqlalchemy.orm import Session
 
-from app.core.exceptions import ConflictError, ValidationError  # Erreurs métier : conflit d'état et donnée invalide.
-from app.core.security import TWO_FACTOR_SCOPE, decode_token  # Constante identifiant les jetons temporaires 2FA, et fonction de décodage des jetons.
-from app.models import User, UserStatus  # Modèle utilisateur et statuts possibles.
+from app.core.exceptions import ConflictError, ValidationError
+from app.core.security import TWO_FACTOR_SCOPE, decode_token
+from app.models import User, UserStatus
 
-ISSUER = "CampOrga"  # Nom affiché dans l'application d'authentification à côté du code.
+ISSUER = "CampOrga"
 
-class InvalidTwoFactorError(Exception):  # Exception levée pendant la connexion en deux étapes.
+
+class InvalidTwoFactorError(Exception):
     """Jeton temporaire ou code refusé lors de la connexion (traduit en 401)."""
 
-def _verify(user: User, code: str) -> bool:  # Fonction privée : vérifie un code TOTP pour un utilisateur.
-    if not user.totp_secret:  # Pas de secret enregistré : aucun code ne peut être valide.
+
+def _verify(user: User, code: str) -> bool:
+    if not user.totp_secret:
         return False
     # valid_window=1 : on accepte aussi le code précédent/suivant (horloges décalées).
-    return pyotp.TOTP(user.totp_secret).verify(code, valid_window=1)  # Compare le code saisi aux codes attendus pour l'instant présent.
+    return pyotp.TOTP(user.totp_secret).verify(code, valid_window=1)
 
-def setup(db: Session, user: User) -> dict:  # Étape 1 : prépare l'activation de la 2FA.
-    if user.is_2fa_enabled:  # La 2FA est déjà active.
+
+def setup(db: Session, user: User) -> dict:
+    if user.is_2fa_enabled:
         # Sinon, un nouvel appel écraserait le secret d'une 2FA déjà active.
         raise ConflictError("La double authentification est déjà activée.")
-    secret = pyotp.random_base32()  # Génère un secret aléatoire, encodé en base32 (lisible par les applications).
-    otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=ISSUER)  # URL standard « otpauth:// » contenant le secret, le compte et l'émetteur.
+    secret = pyotp.random_base32()
+    otpauth_url = pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name=ISSUER)
 
-    image = qrcode.make(otpauth_url)  # Génère le QR code qui contient cette URL.
-    buffer = io.BytesIO()  # Tampon en mémoire.
-    image.save(buffer, format="PNG")  # Écrit l'image PNG dans le tampon.
+    image = qrcode.make(otpauth_url)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
 
-    user.totp_secret = secret  # Enregistre le secret ; la 2FA reste inactive tant que le premier code n'est pas validé.
+    user.totp_secret = secret
     db.commit()
     return {
-        "secret": secret,  # Secret en clair, pour une saisie manuelle si le scan est impossible.
+        "secret": secret,
         "otpauth_url": otpauth_url,
-        "qr_code_base64": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode(),  # Image prête à être affichée directement dans une balise <img>.
+        "qr_code_base64": "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode(),
     }
 
-def enable(db: Session, user: User, code: str) -> None:  # Étape 2 : active la 2FA après vérification d'un premier code.
-    if user.is_2fa_enabled:  # Déjà active : rien à faire.
+
+def enable(db: Session, user: User, code: str) -> None:
+    if user.is_2fa_enabled:
         raise ConflictError("La double authentification est déjà activée.")
-    if not _verify(user, code):  # Le code saisi ne correspond pas : l'utilisateur n'a probablement pas scanné le QR code.
+    if not _verify(user, code):
         raise ValidationError("Code de vérification invalide.")
-    user.is_2fa_enabled = True  # Active la 2FA.
+    user.is_2fa_enabled = True
     db.commit()
 
-def disable(db: Session, user: User, code: str) -> None:  # Désactive la 2FA, avec confirmation par code.
-    if not user.is_2fa_enabled:  # Déjà désactivée.
+
+def disable(db: Session, user: User, code: str) -> None:
+    if not user.is_2fa_enabled:
         raise ConflictError("La double authentification n'est pas activée.")
-    if not _verify(user, code):  # Sans code valide, la désactivation est refusée.
+    if not _verify(user, code):
         raise ValidationError("Code de vérification invalide.")
-    user.is_2fa_enabled = False  # Désactive la 2FA.
-    user.totp_secret = None  # Efface le secret, qui ne doit plus servir.
+    user.is_2fa_enabled = False
+    user.totp_secret = None
     db.commit()
 
-def verify_login(db: Session, temp_token: str, code: str) -> User:  # Étape 2 de la connexion.
+
+def verify_login(db: Session, temp_token: str, code: str) -> User:
     """Étape 2 de la connexion : vérifie le jeton temporaire puis le code."""
-    subject = decode_token(temp_token, TWO_FACTOR_SCOPE)  # Décode le jeton temporaire ; il doit avoir le bon « scope ».
+    subject = decode_token(temp_token, TWO_FACTOR_SCOPE)
     try:
-        user = db.get(User, UUID(subject or ""))  # Convertit l'identifiant en UUID et recherche l'utilisateur.
-    except ValueError:  # Identifiant mal formé.
+        user = db.get(User, UUID(subject or ""))
+    except ValueError:
         user = None
-    if user is None or user.status != UserStatus.ACTIVE or not user.is_2fa_enabled:  # Utilisateur absent, non actif, ou sans 2FA.
-        raise InvalidTwoFactorError("Session de connexion expirée, recommencez.")  # Message volontairement vague.
-    if not _verify(user, code):  # Code TOTP incorrect.
+    if user is None or user.status != UserStatus.ACTIVE or not user.is_2fa_enabled:
+        raise InvalidTwoFactorError("Session de connexion expirée, recommencez.")
+    if not _verify(user, code):
         raise InvalidTwoFactorError("Code de vérification invalide.")
-    return user  # Connexion en deux étapes réussie.
+    return user

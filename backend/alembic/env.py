@@ -1,48 +1,59 @@
-import os  # Module standard pour manipuler les chemins de fichiers et les variables d'environnement.
-import sys  # Module standard pour accéder au chemin de recherche Python (sys.path).
-from logging.config import fileConfig  # Fonction qui configure les logs à partir du fichier alembic.ini.
-from sqlalchemy import engine_from_config, pool  # engine_from_config crée un moteur à partir d'une configuration, pool fournit les stratégies de connexion.
-from alembic import context  # Objet contextuel d'Alembic, qui donne accès à la configuration et aux migrations en cours.
+"""
+Configuration d'Alembic (migrations de la base PostgreSQL).
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))  # Ajoute le dossier parent de env.py (la racine du projet) au début du chemin de recherche, pour que l'import du package "app" fonctionne.
+Lancé par `alembic upgrade head`, automatiquement au démarrage du conteneur backend.
+"""
+import os
+import sys
+from logging.config import fileConfig
+from sqlalchemy import engine_from_config, pool
+from alembic import context
 
-from app.core.config import settings  # Configuration de l'application, notamment l'URL de la base de données.
-from app.db.base_class import Base  # Classe de base déclarative de SQLAlchemy, dont héritent tous les modèles.
-import app.models  # Importe les modèles pour qu'ils soient enregistrés dans Base.metadata ; sans cet import, Alembic ne verrait pas les tables.
+# Rend le package `app` importable quand Alembic est lancé depuis backend/.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-config = context.config  # Récupère la configuration Alembic (le contenu de alembic.ini).
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)  # Injecte l'URL de la base issue des paramètres de l'application, plutôt que celle écrite en dur dans alembic.ini.
+from app.core.config import settings
+from app.db.base_class import Base
+import app.models  # noqa: F401 — enregistre toutes les tables dans Base.metadata
 
-if config.config_file_name is not None:  # Vérifie qu'un fichier de configuration a bien été chargé.
-    fileConfig(config.config_file_name)  # Applique la configuration de logs définie dans ce fichier.
+config = context.config
+# L'URL de la base vient de la configuration de l'application (.env),
+# et non de alembic.ini : un seul endroit pour les identifiants.
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
-target_metadata = Base.metadata  # Décrit le schéma attendu : Alembic compare cette description à la base réelle pour générer les migrations automatiques.
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
 
-def run_migrations_offline() -> None:  # Mode hors ligne : génère le SQL des migrations sans se connecter à la base.
-    url = config.get_main_option("sqlalchemy.url")  # Lit l'URL de la base depuis la configuration.
-    context.configure(  # Configure le contexte Alembic pour le mode hors ligne.
-        url=url,  # URL utilisée pour adapter le dialecte SQL, sans ouvrir de connexion.
-        target_metadata=target_metadata,  # Schéma cible pour l'autogénération.
-        literal_binds=True,  # Écrit les valeurs directement dans le SQL généré, au lieu de paramètres liés.
-        dialect_opts={"paramstyle": "named"},  # Style des paramètres de requête dans le SQL produit.
+# Schéma attendu : Alembic le compare à la base réelle pour autogénérer les migrations.
+target_metadata = Base.metadata
+
+def run_migrations_offline() -> None:
+    """Mode hors ligne : écrit le SQL des migrations sans se connecter à la base."""
+    url = config.get_main_option("sqlalchemy.url")
+    context.configure(
+        url=url,
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
     )
-    with context.begin_transaction():  # Ouvre une transaction pour l'ensemble des migrations.
-        context.run_migrations()  # Exécute les migrations, ou les écrit en SQL dans ce mode.
+    with context.begin_transaction():
+        context.run_migrations()
 
-def run_migrations_online() -> None:  # Mode en ligne : applique les migrations directement sur la base.
-    connectable = engine_from_config(  # Crée un moteur SQLAlchemy à partir de la section de configuration d'Alembic.
-        config.get_section(config.config_ini_section, {}),  # Récupère la section [alembic] du fichier de configuration, ou un dictionnaire vide si elle est absente.
-        prefix="sqlalchemy.",  # Ne prend en compte que les clés commençant par "sqlalchemy.".
-        poolclass=pool.NullPool,  # Désactive le pool de connexions : chaque connexion est fermée dès la fin, ce qui est adapté à un script de migration ponctuel.
+def run_migrations_online() -> None:
+    """Mode normal : se connecte à la base et applique les migrations."""
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section, {}),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,  # pas de pool : une connexion le temps de la migration
     )
-    with connectable.connect() as connection:  # Ouvre une connexion à la base, fermée automatiquement à la sortie du bloc.
-        context.configure(  # Configure le contexte Alembic avec cette connexion active.
-            connection=connection, target_metadata=target_metadata  # Connexion utilisée pour appliquer les migrations, et schéma cible pour la comparaison.
+    with connectable.connect() as connection:
+        context.configure(
+            connection=connection, target_metadata=target_metadata
         )
-        with context.begin_transaction():  # Ouvre une transaction pour appliquer les migrations.
-            context.run_migrations()  # Exécute les migrations sur la base.
+        with context.begin_transaction():
+            context.run_migrations()
 
-if context.is_offline_mode():  # Détermine le mode demandé lors de l'appel à Alembic (par exemple avec l'option --sql).
-    run_migrations_offline()  # Mode hors ligne : génère le SQL sans toucher à la base.
-else:  # Sinon, le mode est en ligne.
-    run_migrations_online()  # Applique les migrations directement sur la base.
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()

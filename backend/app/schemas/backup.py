@@ -1,21 +1,23 @@
-"""Schémas de l'historique des sauvegardes."""  # Docstring du module : schémas de l'historique des sauvegardes.
-from datetime import datetime  # Type des horodatages, utilisé pour la date de création de la sauvegarde.
-from uuid import UUID  # Type des identifiants (sauvegarde, utilisateur déclencheur).
+"""Schémas de l'historique des sauvegardes."""
+from datetime import datetime
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict  # Classe de base Pydantic et configuration du modèle.
+from pydantic import BaseModel, ConfigDict
 
-from app.models import BackupFormat  # Énumération des formats de sauvegarde disponibles.
+from app.models import BackupFormat
 
-class BackupCreate(BaseModel):  # Données envoyées pour déclencher une sauvegarde.
-    format: BackupFormat  # Format de la sauvegarde à produire.
 
-class BackupView(BaseModel):  # Sauvegarde telle que renvoyée par l'API.
-    """Une sauvegarde de l'historique (le chemin sur le serveur n'est pas exposé)."""  # Docstring : le chemin de fichier est volontairement omis pour des raisons de sécurité.
+class BackupCreate(BaseModel):
+    format: BackupFormat
 
-    model_config = ConfigDict(from_attributes=True)  # Autorise la construction à partir d'objets SQLAlchemy.
 
-    id: UUID  # Identifiant de la sauvegarde.
-    format: BackupFormat  # Format de la sauvegarde.
-    triggered_by: UUID  # Identifiant de l'utilisateur qui a déclenché la sauvegarde.
-    file_size_kb: int | None  # Taille du fichier en kilo-octets, absente si inconnue.
-    created_at: datetime | None  # Date de création de la sauvegarde, absente si inconnue.
+class BackupView(BaseModel):
+    """Une sauvegarde de l'historique (le chemin sur le serveur n'est pas exposé)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    format: BackupFormat
+    triggered_by: UUID
+    file_size_kb: int | None
+    created_at: datetime | None
