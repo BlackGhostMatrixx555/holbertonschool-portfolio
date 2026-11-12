@@ -13,8 +13,8 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
 # --- Port occupé ? (lsof si disponible, sinon ss) ---
 port_in_use() {
@@ -25,6 +25,99 @@ port_in_use() {
     fi
 }
 
+usage() {
+    echo "Usage: $0 {start|stop|restart|cleanup|test|admin|admin-reset|frontend|frontend-stop|format|logs|ps|doctor}"
+    echo ""
+    echo "  start          : Démarre PostgreSQL + MongoDB + API (et applique les migrations)"
+    echo "  stop           : Arrête PostgreSQL + MongoDB + API (données conservées)"
+    echo "  restart        : Redémarre le backend"
+    echo "  cleanup        : Détruit tout (conteneurs + volumes : données supprimées)"
+    echo "  test           : Lance la suite de tests avec couverture"
+    echo "  admin          : Crée le Super Admin (ou affiche celui qui existe)"
+    echo "  admin-reset    : Supprime et recrée le Super Admin"
+    echo "  frontend       : Démarre le serveur Vite (bloquant, Ctrl+C pour quitter)"
+    echo "  frontend-stop  : Arrête le serveur Vite (port 5173)"
+    echo "  format         : Formate le code Python"
+    echo "  logs           : Affiche les logs du backend"
+    echo "  ps             : Affiche l'état des services"
+    echo "  doctor         : Diagnostique l'environnement (moteur de conteneurs, ports, .env)"
+}
+
+# --- Diagnostic : pourquoi le moteur de conteneurs est-il inutilisable ? ---
+diagnose_engine() {
+    local found=0
+    if command -v podman &> /dev/null; then
+        found=1
+        if ! podman info &> /dev/null; then
+            log_error "Podman est installé mais injoignable (machine arrêtée ou socket cassé)."
+            log_error "  1) podman machine list   (la machine doit être « Currently running »)"
+            log_error "  2) podman machine stop && podman machine start"
+            log_error "  3) Si « already running » mais connexion refusée : pkill -f gvproxy; pkill -f vfkit; podman machine start"
+            log_error "  4) podman system connection list   (le port doit correspondre à la machine)"
+        elif ! podman compose version &> /dev/null; then
+            log_error "Podman fonctionne mais 'podman compose' est indisponible : installez podman-compose (brew install podman-compose)."
+        fi
+    fi
+    if command -v docker &> /dev/null; then
+        found=1
+        if ! docker info &> /dev/null; then
+            log_error "Docker est installé mais le démon ne répond pas : lancez Docker Desktop et attendez qu'il soit prêt."
+        elif ! docker compose version &> /dev/null; then
+            log_error "Docker fonctionne mais le plugin 'docker compose' est absent : installez-le (inclus dans Docker Desktop)."
+        fi
+    fi
+    if [ "$found" -eq 0 ]; then
+        log_error "Ni Podman ni Docker n'est installé (brew install podman, ou Docker Desktop)."
+    fi
+}
+
+# --- Commande doctor : état de l'environnement, sans rien démarrer ---
+do_doctor() {
+    local engine_ok=0 tool entry port name
+    log_info "Diagnostic de l'environnement CampOrga"
+    for tool in podman docker; do
+        if command -v "$tool" &> /dev/null; then
+            if "$tool" info &> /dev/null; then
+                log_info "$tool : installé et joignable"
+                engine_ok=1
+            else
+                log_warn "$tool : installé mais injoignable"
+            fi
+        else
+            echo "   $tool : non installé"
+        fi
+    done
+    if command -v podman &> /dev/null; then
+        podman machine list 2> /dev/null | sed 's/^/   /' || true
+    fi
+    for entry in "8000:API" "5432:PostgreSQL" "27017:MongoDB" "5173:Frontend (Vite)"; do
+        port="${entry%%:*}"
+        name="${entry#*:}"
+        if port_in_use "$port"; then
+            echo "   Port $port ($name) : occupé (normal si CampOrga tourne déjà)"
+        else
+            echo "   Port $port ($name) : libre"
+        fi
+    done
+    if [ -f ".env" ]; then
+        log_info ".env : présent"
+    else
+        log_warn ".env : absent (il sera créé au prochain start)"
+    fi
+    if [ "$engine_ok" -eq 0 ]; then
+        diagnose_engine
+        log_error "Aucun moteur de conteneurs utilisable."
+        return 1
+    fi
+    log_info "Environnement OK."
+}
+
+# --- Aide et diagnostic : ne nécessitent ni Docker ni Podman ---
+case "${1:-}" in
+    -h|--help|help) usage; exit 0 ;;
+    doctor)         do_doctor; exit $? ;;
+esac
+
 # --- Détection de l'outil de conteneurisation ---
 detect_container_tool() {
     if command -v podman &> /dev/null && podman compose version &> /dev/null; then
@@ -32,13 +125,84 @@ detect_container_tool() {
     elif command -v docker &> /dev/null && docker compose version &> /dev/null; then
         echo "docker compose"
     else
-        log_error "Ni 'podman compose' ni 'docker compose' n'est installé."
+        log_error "Ni 'podman compose' ni 'docker compose' n'est utilisable."
+        diagnose_engine
+        log_error "Pour un état complet : ./camporga.sh doctor"
         exit 1
     fi
 }
 
 CONTAINER_CMD=$(detect_container_tool)
 log_info "Outil de conteneurisation détecté : ${CONTAINER_CMD}"
+
+# --- Analyse d'une erreur de démarrage : reconnaît les causes fréquentes ---
+explain_error() {
+    local text="$1" matched=0
+    if echo "$text" | grep -qiE "address already in use|port is already allocated|ports are not available|bind: .*in use"; then
+        log_error "Un port est déjà utilisé (8000 API, 5432 PostgreSQL ou 27017 MongoDB)."
+        log_error "  Trouvez le coupable : lsof -i :8000 -i :5432 -i :27017 (puis arrêtez-le ou changez le port)."
+        matched=1
+    fi
+    if echo "$text" | grep -qiE "no space left|disk quota"; then
+        log_error "Espace disque insuffisant dans la machine de conteneurs."
+        log_error "  Libérez de la place : $(echo "$CONTAINER_CMD" | cut -d' ' -f1) system prune (images et conteneurs inutilisés)."
+        matched=1
+    fi
+    if echo "$text" | grep -qiE "out of memory|oomkilled|exit code 137|exited \(137\)"; then
+        log_error "Mémoire insuffisante (processus tué par manque de RAM)."
+        log_error "  Podman : podman machine stop && podman machine set --memory 4096 && podman machine start"
+        log_error "  Docker Desktop : Settings > Resources > Memory."
+        matched=1
+    fi
+    if echo "$text" | grep -qiE "cannot connect|connection refused|is the docker daemon running|unable to connect to .* socket"; then
+        log_error "Le moteur de conteneurs ne répond plus."
+        diagnose_engine
+        matched=1
+    fi
+    if echo "$text" | grep -qiE "no such host|i/o timeout|tls handshake|temporary failure in name resolution|unable to retrieve auth|pull access denied|manifest unknown|dial tcp .*lookup"; then
+        log_error "Problème réseau ou registre d'images : vérifiez la connexion Internet (le téléchargement des images a échoué)."
+        matched=1
+    fi
+    if echo "$text" | grep -qiE "password authentication failed|role .* does not exist|database .* does not exist"; then
+        log_error "Identifiants PostgreSQL incohérents : le .env ne correspond pas au volume existant."
+        log_error "  Si ce sont des données de développement : ./camporga.sh cleanup (supprime les volumes), puis start."
+        matched=1
+    fi
+    if echo "$text" | grep -qiE "UniqueViolation|can't locate revision|target database is not up to date|relation .* already exists"; then
+        log_error "Erreur de migration Alembic : voir les lignes ci-dessus."
+        log_error "  Base de développement : ./camporga.sh cleanup puis start. Sinon : $CONTAINER_CMD logs backend."
+        matched=1
+    fi
+    if echo "$text" | grep -qiE "modulenotfounderror|no module named|importerror"; then
+        log_error "Dépendance Python manquante : relancez ./camporga.sh start (reconstruit l'image) et vérifiez backend/requirements.txt."
+        matched=1
+    fi
+    if echo "$text" | grep -qiE "validationerror|field required|secret_key"; then
+        log_error "Configuration invalide : vérifiez le fichier .env (comparez avec .env.example)."
+        matched=1
+    fi
+    if echo "$text" | grep -qiE "permission denied"; then
+        log_error "Permission refusée : vérifiez les droits sur les dossiers montés (backend/, backups/)."
+        matched=1
+    fi
+    [ "$matched" -eq 1 ]
+}
+
+# --- Le conteneur du service $1 est-il arrêté, en redémarrage ou en erreur ? ---
+service_state_bad() {
+    local out
+    out=$($CONTAINER_CMD ps -a 2> /dev/null || $CONTAINER_CMD ps 2> /dev/null) || return 1
+    echo "$out" | grep -E "[_-]$1[_-][0-9]+" | grep -qiE "exited|restarting|dead|unhealthy|stopped"
+}
+
+# --- Affiche les derniers logs d'un service en échec et cherche la cause ---
+report_service_failure() {
+    local svc="$1" logs
+    log_error "Le service '$svc' ne démarre pas correctement. Dernières lignes de son journal :"
+    logs=$($CONTAINER_CMD logs --tail 40 "$svc" 2>&1 || true)
+    echo "$logs" | sed 's/^/    | /' >&2
+    explain_error "$logs" || log_warn "Cause non reconnue. Journal complet : ./camporga.sh logs"
+}
 
 # --- Vérification du .env ---
 # La fusion lit les secrets dans le .env à la RACINE (voir docker-compose.yml).
@@ -64,10 +228,17 @@ wait_for_db() {
     log_info "Attente que la base de données soit prête..."
     local retries=30
     until $CONTAINER_CMD exec -T db sh -c 'pg_isready -U "$POSTGRES_USER"' > /dev/null 2>&1; do
+        if service_state_bad db; then
+            echo ""
+            report_service_failure db
+            exit 1
+        fi
         sleep 1
         retries=$((retries - 1))
         if [ $retries -eq 0 ]; then
+            echo ""
             log_error "La base de données n'est pas prête après 30 secondes."
+            report_service_failure db
             exit 1
         fi
         echo -n "."
@@ -77,15 +248,54 @@ wait_for_db() {
 }
 
 # --- Commandes Backend ---
+wait_for_backend() {
+    log_info "Attente que le backend soit prêt (migrations Alembic incluses)..."
+    local retries=60
+    until $CONTAINER_CMD exec -T backend python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')" > /dev/null 2>&1; do
+        if service_state_bad backend; then
+            echo ""
+            report_service_failure backend
+            exit 1
+        fi
+        sleep 1
+        retries=$((retries - 1))
+        if [ $retries -eq 0 ]; then
+            echo ""
+            log_error "Le backend n'est pas prêt après 60 secondes."
+            report_service_failure backend
+            exit 1
+        fi
+        echo -n "."
+    done
+    echo ""
+    log_info "Backend prêt."
+}
+
 do_start() {
     check_env
     log_info "Démarrage de PostgreSQL, MongoDB et FastAPI..."
-    $CONTAINER_CMD up -d --build
+    local up_log up_status
+    up_log=$(mktemp)
+    set +e
+    $CONTAINER_CMD up -d --build 2>&1 | tee "$up_log"
+    up_status=${PIPESTATUS[0]}
+    set -e
+    if [ "$up_status" -ne 0 ]; then
+        echo ""
+        log_error "Échec du démarrage des conteneurs (code $up_status)."
+        explain_error "$(cat "$up_log")" || log_warn "Cause non reconnue : lisez les dernières lignes ci-dessus, ou lancez ./camporga.sh doctor."
+        rm -f "$up_log"
+        exit 1
+    fi
+    rm -f "$up_log"
 
     wait_for_db
 
-    log_info "Application des migrations Alembic..."
-    $CONTAINER_CMD exec backend alembic upgrade head
+    # Les migrations sont déjà appliquées par le conteneur au démarrage
+    # (CMD du Dockerfile : alembic upgrade head && uvicorn ...). Les relancer ici
+    # provoquait une course entre deux "alembic upgrade head" (UniqueViolation sur
+    # alembic_version). On attend donc simplement que l'API réponde.
+    wait_for_backend
 
     log_info "✅ CampOrga (backend) est prêt !"
     echo -e "   API    : http://localhost:8000"
@@ -95,13 +305,22 @@ do_start() {
 
 do_stop() {
     log_info "Arrêt des services backend et DB..."
-    $CONTAINER_CMD stop
-    log_info "✅ Services backend arrêtés."
+    # `stop` échoue si les conteneurs n'existent plus (déjà supprimés, pod périmé...).
+    # Ce n'est pas une vraie erreur : on nettoie alors les restes (pod, réseau)
+    # au lieu d'afficher des erreurs puis un faux message de succès.
+    if ! $CONTAINER_CMD stop > /dev/null 2>&1; then
+        log_warn "Aucun conteneur actif à arrêter (déjà arrêtés ou supprimés). Nettoyage des restes..."
+        $CONTAINER_CMD down --remove-orphans > /dev/null 2>&1 || true
+    fi
+    log_info "✅ Services arrêtés."
 }
 
 do_restart() {
     log_info "Redémarrage du backend..."
-    $CONTAINER_CMD restart backend
+    if ! $CONTAINER_CMD restart backend; then
+        report_service_failure backend
+        exit 1
+    fi
     log_info "✅ Backend redémarré."
 }
 
@@ -318,20 +537,7 @@ case "$1" in
     logs)           do_logs ;;
     ps)             do_ps ;;
     *)
-        echo "Usage: $0 {start|stop|restart|cleanup|test|admin|admin-reset|frontend|frontend-stop|format|logs|ps}"
-        echo ""
-        echo "  start          : Démarre PostgreSQL + MongoDB + API (et applique les migrations)"
-        echo "  stop           : Arrête PostgreSQL + MongoDB + API (données conservées)"
-        echo "  restart        : Redémarre le backend"
-        echo "  cleanup        : Détruit tout (conteneurs + volumes : données supprimées)"
-        echo "  test           : Lance la suite de tests avec couverture"
-        echo "  admin          : Crée le Super Admin (ou affiche celui qui existe)"
-        echo "  admin-reset    : Supprime et recrée le Super Admin"
-        echo "  frontend       : Démarre le serveur Vite (bloquant, Ctrl+C pour quitter)"
-        echo "  frontend-stop  : Arrête le serveur Vite (port 5173)"
-        echo "  format         : Formate le code Python"
-        echo "  logs           : Affiche les logs du backend"
-        echo "  ps             : Affiche l'état des services"
+        usage
         exit 1
         ;;
 esac
