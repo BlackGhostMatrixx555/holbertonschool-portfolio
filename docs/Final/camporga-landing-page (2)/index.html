@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CampOrga</title>
+<meta name="description" content="CampOrga : la plateforme pour organiser des summer camps de code. Projet Portfolio, Holberton School France, 2026.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Charte de l'application CampOrga (variables @theme du front-end) */
+  --navy: #1b2454;
+  --navy-2: #263070;
+  --coral: #c9353c;
+  --sand: #fbf8f3;
+  --sand-2: #f3ece1;
+  --summer: #f59e0b;
+  --ink: #1b2454;
+  --muted: #4a5170;
+  --line: #e4dccd;
+  --display: "Space Grotesk", "Inter", Arial, sans-serif;
+  --body: "Inter", Arial, sans-serif;
+  /* Mise en page : une colonne de 1120 px, sections alternées sable / blanc, héros bleu nuit comme la page d'accueil de l'app */
+  color-scheme: light;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
+body { background: var(--sand); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.6; }
+img { max-width: 100%; height: auto; display: block; }
+/* Les enfants de grille peuvent rétrécir : évite le débordement horizontal causé par les grandes images */
+.hero .wrap > *, .duo > *, .actors > *, .feature > *, .tech > *, .team > *, .timeline > * { min-width: 0; }
+.tech figure img { width: 100%; }
+a { color: inherit; }
+a:focus-visible, button:focus-visible { outline: 3px solid var(--summer); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.1; text-wrap: balance; }
+.wrap { width: min(1120px, 100% - 40px); margin-inline: auto; }
+.eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--coral); }
+
+/* En-tête */
+header.top { position: sticky; top: 0; z-index: 10; background: rgba(251,248,243,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 20px; text-decoration: none; }
+.brand svg { width: 34px; height: 34px; }
+nav ul { display: flex; gap: 22px; list-style: none; font-size: 15px; font-weight: 600; }
+nav a { text-decoration: none; color: var(--muted); }
+nav a:hover { color: var(--coral); }
+@media (max-width: 760px) { nav ul li:not(:last-child) { display: none; } }
+
+/* Héros */
+.hero { background: var(--navy); color: var(--sand); padding: 72px 0 88px; overflow: hidden; }
+.hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
+.hero .eyebrow { color: #f59e9e; }
+.hero h1 { font-size: clamp(40px, 5.4vw, 66px); margin: 14px 0 20px; }
+.hero h1 em { font-style: normal; color: var(--summer); }
+.hero p.lead { font-size: 19px; color: #d7dbef; max-width: 52ch; }
+.cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 12px; font-weight: 600; text-decoration: none; transition: transform .15s ease; }
+.btn:hover { transform: translateY(-2px); }
+.btn.primary { background: var(--coral); color: #fff; }
+.btn.ghost { border: 2px solid #46508f; color: var(--sand); }
+.shots { position: relative; }
+.shots .desk { border-radius: 14px; border: 6px solid #2f3a7d; box-shadow: 0 30px 60px rgba(0,0,0,.35); }
+.shots .phone { position: absolute; right: -10px; bottom: -40px; width: 34%; border-radius: 18px; border: 6px solid #10163a; box-shadow: 0 20px 40px rgba(0,0,0,.4); }
+@media (max-width: 860px) { .hero .wrap { grid-template-columns: 1fr; } .shots .phone { right: 0; bottom: -24px; } }
+
+/* Compte à rebours des chiffres : le même motif que la landing page d'un camp */
+.counter { background: var(--sand-2); border-bottom: 1px solid var(--line); padding: 34px 0; }
+.counter .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 26px 40px; }
+.counter .label { font-family: var(--display); font-weight: 700; font-size: 18px; max-width: 16ch; }
+.tiles { display: flex; flex-wrap: wrap; gap: 12px; }
+.tile { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 12px 18px; min-width: 112px; text-align: center; }
+.tile b { display: block; font-family: var(--display); font-size: 34px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+
+section.block { padding: 84px 0; }
+section.block.alt { background: #fff; border-block: 1px solid var(--line); }
+.head { max-width: 640px; margin-bottom: 40px; }
+.head h2 { font-size: clamp(30px, 3.6vw, 42px); margin: 10px 0 14px; }
+.head p { color: var(--muted); }
+
+/* Problème / solution */
+.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.duo article { border-radius: 18px; padding: 30px; border: 1px solid var(--line); background: #fff; }
+.duo article.sol { background: var(--navy); color: var(--sand); border-color: var(--navy); }
+.duo h3 { font-size: 24px; margin-bottom: 12px; }
+.duo .sol p { color: #d7dbef; }
+@media (max-width: 760px) { .duo { grid-template-columns: 1fr; } }
+
+/* Fonctionnalités par acteur */
+.actors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.actor { border: 1px solid var(--line); border-radius: 18px; padding: 26px; background: var(--sand); border-top: 6px solid var(--summer); }
+.actor:nth-child(2) { border-top-color: var(--coral); }
+.actor:nth-child(3) { border-top-color: var(--navy); }
+.actor h3 { font-size: 22px; margin-bottom: 4px; }
+.actor .who { font-size: 14px; color: var(--muted); margin-bottom: 14px; }
+.actor ul { padding-left: 18px; display: grid; gap: 6px; }
+@media (max-width: 860px) { .actors { grid-template-columns: 1fr; } }
+
+/* Captures */
+.gallery { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; }
+.gallery figure { grid-column: span 3; background: #fff; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.gallery figure.wide { grid-column: span 6; }
+.gallery figure.third { grid-column: span 2; }
+.gallery img { width: 100%; height: auto; border-bottom: 1px solid var(--line); }
+.gallery figcaption { padding: 12px 16px; font-size: 14px; color: var(--muted); }
+.gallery figcaption b { color: var(--ink); }
+@media (max-width: 760px) { .gallery figure, .gallery figure.third { grid-column: span 6; } }
+
+/* Fonctionnalités clés : image et texte alternés */
+.features { display: grid; gap: 56px; }
+.feature { display: grid; grid-template-columns: 1.25fr 1fr; gap: 40px; align-items: center; }
+.feature:nth-child(even) img { order: 2; }
+.feature img { width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line); box-shadow: 0 18px 40px rgba(27,36,84,.12); }
+.feature .num { font-family: var(--display); font-weight: 700; font-size: 44px; color: var(--summer); line-height: 1; }
+.feature h3 { font-size: 28px; margin: 10px 0 12px; }
+.feature p { color: var(--muted); }
+@media (max-width: 860px) { .feature { grid-template-columns: 1fr; } .feature:nth-child(even) img { order: 0; } }
+.story { max-width: 68ch; display: grid; gap: 14px; margin-bottom: 44px; font-size: 18px; }
+.story a { color: var(--coral); font-weight: 600; }
+.subhead { font-size: 26px; margin: 56px 0 20px; }
+.links { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; }
+.repo { margin-top: 36px; }
+
+/* Technique */
+.tech { display: grid; grid-template-columns: 1.2fr 1fr; gap: 32px; align-items: start; }
+.tech figure { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+.stack { display: grid; gap: 14px; }
+.stack div { display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.stack dt { font-family: var(--display); font-weight: 700; }
+.stack dd { color: var(--muted); }
+@media (max-width: 860px) { .tech { grid-template-columns: 1fr; } }
+
+/* Parcours */
+.timeline { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; position: relative; }
+.timeline::before { content: ""; position: absolute; top: 15px; left: 8%; right: 8%; height: 3px; background: var(--line); }
+.timeline li { position: relative; padding: 0 10px; text-align: center; }
+.timeline .dot { width: 32px; height: 32px; border-radius: 50%; background: var(--summer); color: var(--navy); font-family: var(--display); font-weight: 700; display: grid; place-items: center; margin: 0 auto 14px; position: relative; }
+.timeline li:last-child .dot { background: var(--coral); color: #fff; }
+.timeline h3 { font-size: 17px; margin-bottom: 4px; }
+.timeline .date { font-size: 13px; color: var(--coral); font-weight: 600; font-variant-numeric: tabular-nums; }
+.timeline p { font-size: 14px; color: var(--muted); margin-top: 6px; }
+@media (max-width: 860px) { .timeline { grid-template-columns: 1fr; gap: 22px; } .timeline::before { display: none; } .timeline li { text-align: left; display: grid; grid-template-columns: 44px 1fr; } .timeline .dot { margin: 0; } }
+
+/* Équipe */
+.team { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.member { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 26px; display: grid; gap: 6px; }
+.avatar { width: 56px; height: 56px; border-radius: 50%; background: var(--navy); color: var(--sand); font-family: var(--display); font-weight: 700; font-size: 20px; display: grid; place-items: center; margin-bottom: 8px; }
+.member:nth-child(2) .avatar { background: var(--coral); }
+.member:nth-child(3) .avatar { background: var(--summer); color: var(--navy); }
+.member h3 { font-size: 21px; }
+.member .role { color: var(--muted); font-size: 15px; }
+.member a { font-size: 15px; font-weight: 600; color: var(--coral); text-decoration: none; }
+.member a:hover { text-decoration: underline; }
+@media (max-width: 860px) { .team { grid-template-columns: 1fr; } }
+
+footer { background: var(--navy); color: #c9cfea; padding: 44px 0; font-size: 15px; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 18px; align-items: center; }
+footer a { color: var(--sand); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#accueil" aria-label="CampOrga, retour en haut">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" fill="#c9353c"/><path d="M20 9 L31 30 H9 Z" fill="#fff"/><path d="M20 21 L24.5 30 H15.5 Z" fill="#c9353c"/><path d="M20 9 V4 L25 6 L20 8" fill="#fff"/></svg>
+      CampOrga
+    </a>
+    <nav aria-label="Navigation principale">
+      <ul>
+        <li><a href="#fonctionnalites">Fonctionnalités</a></li>
+        <li><a href="#technique">Technique</a></li>
+        <li><a href="#apropos">À propos</a></li>
+        <li><a href="https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio">GitHub</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="accueil">
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Projet Portfolio · Holberton School France</p>
+        <h1>Des summer camps de code, <em>organisés en un seul endroit.</em></h1>
+        <p class="lead">CampOrga permet à une école de code de créer et publier ses camps d’été. Chaque camp a sa landing page, les familles s’inscrivent en une minute, et les organisateurs suivent tout depuis un tableau de bord.</p>
+        <div class="cta">
+          <a class="btn primary" href="#fonctionnalites">Découvrir l’application</a>
+          <a class="btn ghost" href="https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio">Code source sur GitHub</a>
+        </div>
+      </div>
+      <div class="shots">
+        <img class="desk" src="img/home.jpg" alt="Page d’accueil de CampOrga : « Des summer camps pour découvrir le code »" width="1600" height="748">
+        <img class="phone" src="img/mobile.jpg" alt="Landing page d’un camp sur mobile, avec le compte à rebours" width="601" height="751">
+      </div>
+    </div>
+  </section>
+
+  <section class="counter" aria-label="Chiffres clés de la version 2.0.0">
+    <div class="wrap">
+      <p class="label">Version 2.0.0, livrée le 4 novembre 2026</p>
+      <div class="tiles">
+        <div class="tile"><b>127</b><span>tests back-end</span></div>
+        <div class="tile"><b>97 %</b><span>couverture</span></div>
+        <div class="tile"><b>37</b><span>tests front-end</span></div>
+        <div class="tile"><b>41</b><span>routes d’API</span></div>
+        <div class="tile"><b>3</b><span>services Docker</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="fonctionnalites">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow">Fonctionnalités</p>
+        <h2>Trois fonctionnalités clés</h2>
+        <p>Du camp publié à l’inscription confirmée : ce que CampOrga fait pour les familles, les organisateurs et le responsable de la plateforme.</p>
+      </div>
+      <div class="features">
+        <article class="feature">
+          <img src="img/camp.jpg" alt="Landing page du Camp Jeu d’essai : compte à rebours, informations pratiques et formulaire d’inscription" width="1600" height="748" loading="lazy">
+          <div>
+            <p class="num">01</p>
+            <h3>Une landing page par camp</h3>
+            <p>Chaque camp publié obtient sa page publique : dates, ville, âge minimum, compte à rebours et places restantes en direct. Les familles s’inscrivent en un seul formulaire, sans créer de compte, et l’inscription est refusée dès que le camp est complet.</p>
+          </div>
+        </article>
+        <article class="feature">
+          <img src="img/dashboard.jpg" alt="Tableau de bord organisateur : 3 camps, 2 publiés, 1 brouillon, 2 inscriptions" width="1600" height="746" loading="lazy">
+          <div>
+            <p class="num">02</p>
+            <h3>Le tableau de bord organisateur</h3>
+            <p>L’organisateur crée ses camps, les publie quand ils sont prêts et suit les inscriptions au même endroit : compteurs, statut de chaque camp, dernières inscriptions, présences et messages des familles.</p>
+          </div>
+        </article>
+        <article class="feature">
+          <img src="img/users.jpg" alt="Page Utilisateurs : rôle et statut de chaque compte, création de compte" width="1600" height="674" loading="lazy">
+          <div>
+            <p class="num">03</p>
+            <h3>Administration et sécurité</h3>
+            <p>Le super admin active les nouveaux comptes, attribue les rôles, supervise tous les camps et exporte des sauvegardes en SQL ou en CSV. Les mots de passe sont hachés et chaque compte peut activer la double authentification.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="block alt" id="technique">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow">Technique</p>
+        <h2>Une API en couches, deux bases de données</h2>
+        <p>Le navigateur ne parle qu’à l’API. L’API sépare les routes, la validation, les règles métier et l’accès aux données ; seule l’API touche PostgreSQL et MongoDB.</p>
+      </div>
+      <div class="tech">
+        <figure><img src="img/archi.jpg" alt="Architecture : front-end React, API FastAPI en couches, PostgreSQL et MongoDB dans Docker Compose" width="1344" height="714" loading="lazy"></figure>
+        <dl class="stack">
+          <div><dt>Front-end</dt><dd>React 19, TypeScript, Vite, Tailwind CSS, TanStack Query, Zod</dd></div>
+          <div><dt>Back-end</dt><dd>Python 3.11, FastAPI, Pydantic, SQLAlchemy, Alembic</dd></div>
+          <div><dt>Données</dt><dd>PostgreSQL 16 (7 tables), MongoDB 7 (2 collections)</dd></div>
+          <div><dt>Sécurité</dt><dd>bcrypt, JWT, double authentification TOTP, rôles</dd></div>
+          <div><dt>DevOps</dt><dd>Docker Compose, script camporga.sh, Git</dd></div>
+          <div><dt>Qualité</dt><dd>Pytest, Vitest, Testing Library, ESLint, Ruff</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="apropos">
+    <div class="wrap">
+      <div class="head">
+        <p class="eyebrow">À propos</p>
+        <h2>L’histoire du projet</h2>
+      </div>
+      <div class="story">
+        <!-- HISTOIRE : à compléter avec l'histoire personnelle de l'équipe -->
+        <p>Les équipes qui organisent des summer camps de code géraient chaque camp dans son propre fichier, et les familles s’inscrivaient par email sans savoir s’il restait de la place. Nous avons voulu leur donner un seul outil, simple pour les organisateurs comme pour les familles.</p>
+        <p>CampOrga est notre <a href="https://www.holbertonschool.fr/">Projet Portfolio à Holberton School France</a>, mené d’août à novembre 2026.</p>
+      </div>
+      <ol class="timeline">
+        <li><span class="dot">1</span><div><p class="date">11 – 19 août</p><h3>Idéation</h3><p>Idée cadrée et validée</p></div></li>
+        <li><span class="dot">2</span><div><p class="date">20 – 24 août</p><h3>Planification</h3><p>Plan de projet et cahier des charges</p></div></li>
+        <li><span class="dot">3</span><div><p class="date">24 août – 14 sept.</p><h3>Documentation</h3><p>Schéma de base, cas d’usage, maquettes</p></div></li>
+        <li><span class="dot">4</span><div><p class="date">Octobre – 2 nov.</p><h3>Développement</h3><p>API, base, interfaces, tests</p></div></li>
+        <li><span class="dot">5</span><div><p class="date">3 – 4 nov.</p><h3>Version 2.0.0</h3><p>Fusion des deux branches</p></div></li>
+      </ol>
+      <h3 class="subhead">L’équipe</h3>
+      <div class="team">
+        <article class="member">
+          <div class="avatar" aria-hidden="true">TD</div>
+          <h3>Thélyaan Dufrénoy</h3>
+          <p class="role">Fullstack / Lead</p>
+          <p class="links"><a href="https://github.com/BlackGhostMatrixx555">GitHub</a></p>
+        </article>
+        <article class="member">
+          <div class="avatar" aria-hidden="true">CO</div>
+          <h3>Collins ODI OBI</h3>
+          <p class="role">Back-end / DevOps (+ front-end)</p>
+          <p class="links"><a href="https://github.com/Collinsodiobi">GitHub</a></p>
+        </article>
+        <article class="member">
+          <div class="avatar" aria-hidden="true">QM</div>
+          <h3>Quentin Moussous</h3>
+          <p class="links"><a href="https://github.com/quentinmss">GitHub</a></p>
+        </article>
+      </div>
+      <p class="repo"><a class="btn primary" href="https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio">Voir le dépôt GitHub du projet</a></p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>CampOrga · Projet Portfolio · Holberton School France · 2026</p>
+    <p><a href="https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio">github.com/BlackGhostMatrixx555/holbertonschool-portfolio</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
