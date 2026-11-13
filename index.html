@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CampOrga : organisez vos summer camps de code</title>
+<meta name="description" content="CampOrga rassemble les summer camps de code d’une organisation : page publique par camp, inscriptions, tableau de bord et administration sécurisée. Portfolio Project, Holberton School France.">
+<meta property="og:title" content="CampOrga">
+<meta property="og:description" content="Organisez vos summer camps de code : page publique, inscriptions, tableau de bord.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%23E4002B'/%3E%3Cpath d='M16 78 L50 20 L84 78 Z' fill='white'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --red: #E4002B;
+  --red-dark: #B80022;
+  --red-soft: #FF6B81;
+  --black: #0B0B0F;
+  --ink: #16161B;
+  --grey-1: #F6F6F8;
+  --grey-2: #E4E4E8;
+  --grey-3: #5B5B66;
+  --white: #FFFFFF;
+  --display: "Space Grotesk", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --text: "DM Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 5.5rem; }
+body { margin: 0; font-family: var(--text); font-size: 1.0625rem; line-height: 1.6; color: var(--ink); background: var(--white); }
+a { color: inherit; }
+:focus-visible { outline: 3px solid var(--red); outline-offset: 3px; border-radius: 3px; }
+.dark :focus-visible, .hero :focus-visible, footer :focus-visible { outline-color: var(--white); }
+.skip { position: absolute; left: -999px; top: 0; background: var(--red); color: var(--white); padding: .6rem 1rem; z-index: 30; }
+.skip:focus { left: 0; }
+.wrap { max-width: 72rem; margin: 0 auto; }
+section { padding: clamp(3.5rem, 9vw, 6.5rem) clamp(1rem, 4vw, 3rem); }
+
+/* Bandeau et en-tête */
+.topbar { background: var(--red); color: var(--white); text-align: center; font-size: .88rem; font-weight: 500; padding: .45rem 1rem; letter-spacing: .01em; }
+.site-header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem clamp(1rem, 4vw, 3rem); background: var(--white); border-bottom: 1px solid var(--grey-2); }
+.brand { display: flex; align-items: center; gap: .6rem; font-family: var(--display); font-weight: 700; font-size: 1.45rem; text-decoration: none; letter-spacing: -.02em; color: var(--black); }
+.brand b { color: var(--red); }
+.brand-mark { width: 30px; height: 30px; border-radius: 7px; background: var(--red); display: grid; place-items: center; }
+.site-header nav { display: flex; align-items: center; gap: clamp(.9rem, 2.2vw, 2rem); }
+.site-header nav a:not(.btn) { text-decoration: none; font-weight: 500; font-size: .98rem; padding: .3rem 0; border-bottom: 2px solid transparent; }
+.site-header nav a:not(.btn):hover { border-bottom-color: var(--red); }
+.btn { display: inline-block; text-decoration: none; font-weight: 700; font-size: 1rem; padding: .85rem 1.5rem; border-radius: 6px; border: 2px solid var(--red); background: var(--red); color: var(--white); transition: background-color .15s, border-color .15s, color .15s; }
+.btn:hover { background: var(--red-dark); border-color: var(--red-dark); }
+.btn.ghost { background: transparent; color: var(--white); border-color: rgba(255, 255, 255, .6); }
+.btn.ghost:hover { background: rgba(255, 255, 255, .12); border-color: var(--white); }
+.btn.line { background: transparent; color: var(--black); border-color: var(--black); }
+.btn.line:hover { background: var(--black); color: var(--white); }
+.site-header .btn { padding: .55rem 1.1rem; font-size: .95rem; }
+
+/* Introduction */
+.hero { position: relative; overflow: hidden; background: var(--black); color: var(--white); min-height: min(86vh, 720px); display: flex; align-items: center; }
+.hero .scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero::before { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(90deg, rgba(11, 11, 15, .94) 0%, rgba(11, 11, 15, .82) 38%, rgba(11, 11, 15, 0) 72%); }
+.hero-content { position: relative; z-index: 2; width: 100%; max-width: 72rem; margin: 0 auto; padding: clamp(3rem, 9vh, 5rem) clamp(1rem, 4vw, 3rem); }
+.eyebrow { display: inline-block; font-family: var(--mono); font-size: .82rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; padding: .35rem .7rem; border: 1px solid rgba(255, 255, 255, .35); border-radius: 4px; margin-bottom: 1.4rem; }
+.eyebrow i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: .55rem; vertical-align: 1px; }
+.hero h1 { margin: 0; max-width: 14ch; font-family: var(--display); font-weight: 700; font-size: clamp(2.7rem, 7vw, 5.2rem); line-height: .98; letter-spacing: -.035em; }
+.hero h1 mark { background: none; color: var(--white); box-shadow: inset 0 -.14em 0 var(--red); }
+.hero .lede { margin: 1.5rem 0 2.2rem; max-width: 34rem; font-size: 1.2rem; color: #D9D9E0; }
+.hero .actions { display: flex; flex-wrap: wrap; gap: .8rem; }
+.hero .hint { margin: 1.1rem 0 0; font-size: .92rem; color: #B9B9C4; }
+.hero .hint a { color: var(--white); }
+.flame { transform-origin: 1135px 652px; animation: flicker 1.5s ease-in-out infinite alternate; }
+@keyframes flicker { from { transform: scale(1, 1); } to { transform: scale(.9, 1.15); } }
+
+/* Chiffres */
+.stats { padding-block: 2.6rem; border-bottom: 1px solid var(--grey-2); }
+.stats ul { list-style: none; margin: 0 auto; padding: 0; max-width: 72rem; display: grid; grid-template-columns: repeat(5, 1fr); }
+.stats li { padding: .2rem 1.2rem; border-left: 1px solid var(--grey-2); }
+.stats li:first-child { border-left: 0; padding-left: 0; }
+.stats strong { display: block; font-family: var(--display); font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1; color: var(--red); letter-spacing: -.03em; }
+.stats span { display: block; margin-top: .4rem; color: var(--grey-3); font-size: .95rem; }
+
+/* Titres de section */
+.kicker { font-family: var(--mono); font-size: .82rem; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--red); margin: 0 0 .8rem; }
+h2 { font-family: var(--display); font-weight: 700; font-size: clamp(1.9rem, 4.6vw, 3.1rem); line-height: 1.04; letter-spacing: -.03em; margin: 0 0 .8rem; max-width: 20ch; }
+.sub { margin: 0 0 3rem; color: var(--grey-3); max-width: 40rem; }
+
+/* Fonctionnalités */
+.feature { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(1.5rem, 5vw, 4.5rem); align-items: center; padding: 2.6rem 0; border-top: 1px solid var(--grey-2); }
+.feature:nth-of-type(even) figure { order: 2; }
+.num { font-family: var(--mono); font-size: .9rem; color: var(--red); font-weight: 500; margin: 0 0 .6rem; }
+.feature h3 { font-family: var(--display); font-size: clamp(1.5rem, 3.2vw, 2.1rem); line-height: 1.1; margin: 0 0 .8rem; letter-spacing: -.02em; }
+.feature p { margin: 0 0 .8rem; max-width: 34rem; }
+.feature .note { color: var(--grey-3); font-size: .98rem; }
+figure { margin: 0; }
+figure svg { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 0 0 1px var(--grey-2), 0 24px 48px -28px rgba(11, 11, 15, .55); }
+figcaption { margin-top: .6rem; font-size: .88rem; color: var(--grey-3); }
+.mock text { font-family: var(--text); }
+
+/* Technologies */
+#tech { background: var(--grey-1); }
+.tech-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.6rem; margin-top: 2.4rem; }
+.tech-col { border-top: 3px solid var(--red); padding-top: 1rem; }
+.tech-col h3 { margin: 0 0 .8rem; font-family: var(--display); font-size: 1.2rem; }
+.tech-col ul { list-style: none; margin: 0; padding: 0; }
+.tech-col li { padding: .42rem 0; border-bottom: 1px solid var(--grey-2); font-size: .98rem; }
+.tech-col li span { display: block; color: var(--grey-3); font-size: .86rem; }
+
+/* Lancer en local */
+.dark { background: var(--black); color: var(--white); }
+.dark h2 { color: var(--white); }
+.dark .sub { color: #B9B9C4; }
+.run-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: clamp(1.5rem, 5vw, 4rem); align-items: start; }
+.steps { list-style: none; margin: 0 0 2rem; padding: 0; counter-reset: s; }
+.steps li { counter-increment: s; position: relative; padding: 0 0 1.1rem 3rem; color: #DADAE2; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: -.05rem; width: 2rem; height: 2rem; display: grid; place-items: center; border-radius: 50%; background: var(--red); color: var(--white); font-family: var(--mono); font-size: .9rem; font-weight: 500; }
+.steps strong { color: var(--white); }
+.terminal { background: #15151B; border: 1px solid #2A2A33; border-radius: 10px; overflow: hidden; font-family: var(--mono); font-size: .88rem; }
+.terminal .bar { display: flex; gap: .4rem; padding: .7rem .9rem; background: #1C1C24; border-bottom: 1px solid #2A2A33; }
+.terminal .bar i { width: 11px; height: 11px; border-radius: 50%; background: #3A3A45; }
+.terminal .bar i:first-child { background: var(--red); }
+.terminal pre { margin: 0; padding: 1.1rem 1.2rem 1.3rem; overflow-x: auto; line-height: 1.8; color: #E8E8EE; }
+.terminal .p { color: var(--red-soft); user-select: none; }
+.terminal .c { color: #8A8A97; }
+
+/* À propos */
+.about-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: clamp(2rem, 6vw, 5rem); margin-top: 2rem; }
+.story p { max-width: 38rem; margin: 0 0 1.1rem; }
+.story a { color: var(--red-dark); font-weight: 500; }
+.timeline { list-style: none; margin: 0; padding: 0 0 0 1.5rem; border-left: 2px solid var(--black); }
+.timeline li { position: relative; margin: 0 0 1.5rem; }
+.timeline li::before { content: ""; position: absolute; left: calc(-1.5rem - 7px); top: .45rem; width: 12px; height: 12px; background: var(--red); transform: rotate(45deg); }
+.timeline strong { display: block; font-family: var(--display); font-size: 1.1rem; }
+.timeline span { color: var(--grey-3); font-size: .98rem; }
+.team { margin-top: 3.5rem; border-top: 3px solid var(--black); }
+.member { display: grid; grid-template-columns: 1fr auto; gap: .5rem 2rem; align-items: center; padding: 1.3rem 0; border-bottom: 1px solid var(--grey-2); }
+.member h3 { margin: 0; font-family: var(--display); font-size: 1.4rem; letter-spacing: -.01em; }
+.member p { margin: 0; color: var(--grey-3); font-size: .98rem; }
+.member ul { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin: 0; padding: 0; }
+.member ul a { font-weight: 700; text-decoration: none; border-bottom: 2px solid var(--red); padding-bottom: 1px; }
+.member ul a:hover { color: var(--red); }
+.repo { margin-top: 3rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.6rem; }
+.repo p { margin: 0; color: var(--grey-3); }
+
+footer { background: var(--black); color: #B9B9C4; padding: 1.8rem clamp(1rem, 4vw, 3rem); font-size: .95rem; border-top: 4px solid var(--red); }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .6rem 2rem; }
+footer a { color: var(--white); }
+
+@media (max-width: 900px) {
+  .stats ul { grid-template-columns: repeat(2, 1fr); gap: 1.6rem 0; }
+  .stats li:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .stats li:last-child { grid-column: 1 / -1; border-left: 0; padding-left: 0; }
+  .tech-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 800px) {
+  .site-header nav a.hide-s { display: none; }
+  .feature, .about-grid, .run-grid { grid-template-columns: 1fr; }
+  .feature:nth-of-type(even) figure { order: 0; }
+  .member { grid-template-columns: 1fr; }
+  .hero::before { background: linear-gradient(180deg, rgba(11, 11, 15, .85), rgba(11, 11, 15, .7)); }
+}
+@media (max-width: 560px) {
+  .site-header { padding: .7rem 1rem; }
+  .site-header .btn { display: none; }
+  .tech-grid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .flame { animation: none; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#fonctionnalites">Aller au contenu</a>
+<div class="topbar">Portfolio Project · Holberton School France · Promotion 2026</div>
+
+<header class="site-header">
+  <a class="brand" href="#top" aria-label="CampOrga, retour en haut de la page">
+    <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M1 16 L9 2 L17 16 Z" fill="#fff"/></svg></span>
+    <span>Camp<b>Orga</b></span>
+  </a>
+  <nav aria-label="Navigation principale">
+    <a href="#fonctionnalites">Fonctionnalités</a>
+    <a class="hide-s" href="#tech">Technologies</a>
+    <a class="hide-s" href="#local">Lancer en local</a>
+    <a href="#equipe">Équipe</a>
+    <a class="btn" href="http://localhost:5173/">Ouvrir l’application</a>
+  </nav>
+</header>
+
+<main id="top">
+  <!-- Introduction -->
+  <div class="hero">
+    <svg class="scene" viewBox="0 0 1440 720" preserveAspectRatio="xMaxYMid slice" role="img" aria-label="Illustration : un campement au pied des montagnes sous un grand soleil rouge, avec une tente éclairée et un feu de camp.">
+      <defs>
+        <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.4" fill="#2A2A33"/></pattern>
+        <g id="pine"><path d="M0 0 L18 40 H7 L24 80 H9 L28 124 H-28 L-9 80 H-24 L-7 40 H-18 Z"/></g>
+      </defs>
+      <rect width="1440" height="720" fill="#0B0B0F"/>
+      <rect width="1440" height="720" fill="url(#dots)" opacity=".7"/>
+      <text x="560" y="250" font-family="JetBrains Mono, monospace" font-size="220" font-weight="500" fill="#17171D">&lt;/&gt;</text>
+      <circle cx="1090" cy="360" r="236" fill="#E4002B"/>
+      <path d="M520 720 L760 470 L880 566 L1040 396 L1200 540 L1320 456 L1440 560 V720 Z" fill="#1A1A21"/>
+      <path d="M380 720 L620 572 L770 650 L940 528 L1100 650 L1280 566 L1440 656 V720 Z" fill="#101015"/>
+      <g fill="#0B0B0F">
+        <use href="#pine" x="690" y="560"/><use href="#pine" x="760" y="600"/><use href="#pine" x="830" y="570"/>
+        <use href="#pine" x="1250" y="540"/><use href="#pine" x="1330" y="520"/><use href="#pine" x="1400" y="555"/>
+      </g>
+      <path d="M0 660 C300 640 700 690 1000 668 S1340 664 1440 656 V720 H0 Z" fill="#08080B"/>
+      <path d="M900 664 L1010 536 L1120 664 Z" fill="#FFFFFF"/>
+      <path d="M1010 536 L1068 664 H952 Z" fill="#E6E6EA"/>
+      <path d="M984 664 L1010 596 L1036 664 Z" fill="#E4002B"/>
+      <g class="flame">
+        <path d="M1135 656 C1123 640 1129 628 1135 614 C1143 628 1151 640 1135 656 Z" fill="#E4002B"/>
+        <path d="M1135 656 C1129 646 1132 638 1135 630 C1139 638 1142 646 1135 656 Z" fill="#FFFFFF"/>
+      </g>
+      <path d="M1117 660 L1153 668 M1153 660 L1117 668" stroke="#3A3A45" stroke-width="5" stroke-linecap="round"/>
+    </svg>
+    <div class="hero-content">
+      <span class="eyebrow"><i></i>Portfolio Project 2026</span>
+      <h1>Organisez vos <mark>summer camps</mark> de code.</h1>
+      <p class="lede">CampOrga crée la page de chaque camp, reçoit les inscriptions et donne aux organisateurs un tableau de bord, au même endroit.</p>
+      <div class="actions">
+        <a class="btn" href="http://localhost:5173/">Ouvrir l’application</a>
+        <a class="btn ghost" href="https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio" rel="noopener">Voir le code sur GitHub</a>
+      </div>
+      <p class="hint">L’application tourne sur votre machine : <a href="#local">voir comment la lancer</a>.</p>
+    </div>
+  </div>
+
+  <!-- Chiffres -->
+  <section class="stats" aria-label="Le projet en chiffres">
+    <ul>
+      <li><strong>127</strong><span>tests backend</span></li>
+      <li><strong>97 %</strong><span>de couverture</span></li>
+      <li><strong>37</strong><span>tests frontend</span></li>
+      <li><strong>7</strong><span>tables PostgreSQL</span></li>
+      <li><strong>2</strong><span>collections MongoDB</span></li>
+    </ul>
+  </section>
+
+  <!-- Fonctionnalités -->
+  <section id="fonctionnalites">
+    <div class="wrap">
+      <p class="kicker">Fonctionnalités</p>
+      <h2>Ce que CampOrga fait pour vous</h2>
+      <p class="sub">Trois fonctionnalités couvrent le parcours d’un camp, de sa page publique jusqu’à l’administration.</p>
+
+      <article class="feature">
+        <figure>
+          <svg class="mock" viewBox="0 0 480 340" role="img" aria-labelledby="m1t">
+            <title id="m1t">Aperçu de la page publique d’un camp : titre, dates, compte à rebours, places restantes et bouton d’inscription.</title>
+            <rect x="8" y="8" width="464" height="324" rx="12" fill="#fff" stroke="#D9D9DF"/>
+            <rect x="8" y="8" width="464" height="32" rx="12" fill="#EDEDF0"/><rect x="8" y="28" width="464" height="12" fill="#EDEDF0"/>
+            <circle cx="26" cy="24" r="4" fill="#D9D9DF"/><circle cx="40" cy="24" r="4" fill="#D9D9DF"/><circle cx="54" cy="24" r="4" fill="#D9D9DF"/>
+            <rect x="74" y="17" width="250" height="14" rx="7" fill="#fff"/><text x="86" y="27.5" font-size="9" fill="#5B5B66">…/camps/camp-code-ete</text>
+            <rect x="8" y="40" width="464" height="124" fill="#0B0B0F"/>
+            <path d="M8 164 L120 110 L200 148 L290 100 L380 150 L472 118 V164 Z" fill="#1A1A21"/>
+            <circle cx="414" cy="74" r="14" fill="#E4002B"/>
+            <text x="28" y="90" font-size="22" font-weight="700" fill="#FFFFFF">Camp Code d’été</text>
+            <text x="28" y="110" font-size="11" fill="#D9D9E0">Marseille, du 14 au 18 juillet, dès 14 ans</text>
+            <text x="28" y="138" font-size="12" font-weight="600" fill="#FFFFFF">Début dans 42 jours</text>
+            <text x="28" y="192" font-size="10" fill="#5B5B66">Places restantes</text>
+            <rect x="28" y="200" width="300" height="10" rx="5" fill="#E4E4E8"/><rect x="28" y="200" width="180" height="10" rx="5" fill="#E4002B"/>
+            <text x="338" y="209" font-size="10" fill="#0B0B0F">18 sur 30</text>
+            <rect x="28" y="228" width="130" height="34" rx="8" fill="#E4002B"/><text x="93" y="250" font-size="12" font-weight="600" text-anchor="middle" fill="#FFFFFF">S’inscrire</text>
+            <rect x="170" y="228" width="170" height="34" rx="8" fill="none" stroke="#0B0B0F"/><text x="255" y="250" font-size="11" font-weight="600" text-anchor="middle" fill="#0B0B0F">Partager sur LinkedIn</text>
+            <rect x="296" y="272" width="118" height="28" rx="8" fill="#EDEDF0"/><text x="355" y="290" font-size="10" text-anchor="middle" fill="#0B0B0F">Une question ?</text>
+            <circle cx="438" cy="296" r="22" fill="#E4002B"/><text x="438" y="303" font-size="20" font-weight="700" text-anchor="middle" fill="#fff">?</text>
+          </svg>
+          <figcaption>Illustration d’une page de camp.</figcaption>
+        </figure>
+        <div>
+          <p class="num">01</p>
+          <h3>Une page publique pour chaque camp</h3>
+          <p>Dès qu’un organisateur crée un camp, sa page est prête : dates, ville, âge minimum, places restantes et compte à rebours aux couleurs de la saison.</p>
+          <p class="note">Les visiteurs partagent la page sur LinkedIn et posent leurs questions à l’assistant ou à la hotline.</p>
+        </div>
+      </article>
+
+      <article class="feature">
+        <figure>
+          <svg class="mock" viewBox="0 0 480 340" role="img" aria-labelledby="m2t">
+            <title id="m2t">Aperçu du formulaire d’inscription à gauche et du tableau de bord de l’organisateur à droite.</title>
+            <rect x="8" y="8" width="230" height="324" rx="12" fill="#fff" stroke="#D9D9DF"/>
+            <text x="24" y="38" font-size="13" font-weight="700" fill="#0B0B0F">Inscription</text>
+            <text x="24" y="62" font-size="9" fill="#5B5B66">Prénom</text><rect x="24" y="68" width="198" height="26" rx="6" fill="#F6F6F8" stroke="#D9D9DF"/>
+            <text x="24" y="114" font-size="9" fill="#5B5B66">Nom</text><rect x="24" y="120" width="198" height="26" rx="6" fill="#F6F6F8" stroke="#D9D9DF"/>
+            <text x="24" y="166" font-size="9" fill="#5B5B66">Email</text><rect x="24" y="172" width="198" height="26" rx="6" fill="#F6F6F8" stroke="#D9D9DF"/>
+            <rect x="24" y="212" width="14" height="14" rx="3" fill="#E4002B"/><path d="M27 219 l4 4 l7 -9" fill="none" stroke="#fff" stroke-width="2"/>
+            <text x="46" y="223" font-size="9" fill="#0B0B0F">Je confirme ma participation</text>
+            <rect x="24" y="250" width="198" height="34" rx="8" fill="#E4002B"/><text x="123" y="272" font-size="12" font-weight="600" text-anchor="middle" fill="#FFFFFF">Confirmer l’inscription</text>
+            <rect x="250" y="8" width="222" height="324" rx="12" fill="#0B0B0F"/>
+            <text x="266" y="38" font-size="13" font-weight="700" fill="#FFFFFF">Tableau de bord</text>
+            <text x="266" y="66" font-size="10" fill="#A6A6B3">Inscriptions récentes</text>
+            <rect x="266" y="76" width="190" height="34" rx="8" fill="#1A1A21"/><text x="278" y="97" font-size="11" fill="#FFFFFF">Léa M.</text><text x="444" y="97" font-size="10" text-anchor="end" fill="#A6A6B3">Confirmée</text>
+            <rect x="266" y="118" width="190" height="34" rx="8" fill="#1A1A21"/><text x="278" y="139" font-size="11" fill="#FFFFFF">Noah B.</text><text x="444" y="139" font-size="10" text-anchor="end" fill="#A6A6B3">Confirmée</text>
+            <rect x="266" y="160" width="190" height="34" rx="8" fill="#1A1A21"/><text x="278" y="181" font-size="11" fill="#FFFFFF">Inès K.</text><text x="444" y="181" font-size="10" text-anchor="end" fill="#FF6B81">En attente</text>
+            <rect x="266" y="212" width="190" height="34" rx="8" fill="#1A1A21"/><text x="278" y="233" font-size="11" fill="#FFFFFF">Messages non lus</text><text x="444" y="233" font-size="11" font-weight="700" text-anchor="end" fill="#FF6B81">2</text>
+          </svg>
+          <figcaption>Illustration du formulaire et du tableau de bord.</figcaption>
+        </figure>
+        <div>
+          <p class="num">02</p>
+          <h3>Des inscriptions simples, suivies en direct</h3>
+          <p>Un participant s’inscrit en trois étapes : son nom, son email, la confirmation. Aucun compte à créer.</p>
+          <p class="note">L’organisateur retrouve les inscriptions, les présences et les messages reçus dans son tableau de bord.</p>
+        </div>
+      </article>
+
+      <article class="feature">
+        <figure>
+          <svg class="mock" viewBox="0 0 480 340" role="img" aria-labelledby="m3t">
+            <title id="m3t">Aperçu de l’administration : liste des utilisateurs avec leur rôle et leur statut, double authentification et export de sauvegarde.</title>
+            <rect x="8" y="8" width="464" height="324" rx="12" fill="#fff" stroke="#D9D9DF"/>
+            <text x="24" y="38" font-size="13" font-weight="700" fill="#0B0B0F">Administration</text>
+            <text x="24" y="64" font-size="9" fill="#5B5B66">Utilisateur</text><text x="170" y="64" font-size="9" fill="#5B5B66">Rôle</text><text x="320" y="64" font-size="9" fill="#5B5B66">Statut</text>
+            <path d="M24 70 H456" stroke="#D9D9DF"/>
+            <text x="24" y="90" font-size="11" fill="#0B0B0F">Camille R.</text><text x="170" y="90" font-size="11" fill="#0B0B0F">Organisateur</text><text x="320" y="90" font-size="11" fill="#15803D" font-weight="600">Actif</text>
+            <path d="M24 100 H456" stroke="#EDEDF0"/>
+            <text x="24" y="120" font-size="11" fill="#0B0B0F">Yanis T.</text><text x="170" y="120" font-size="11" fill="#0B0B0F">Directeur de campus</text><text x="320" y="120" font-size="11" fill="#B45309" font-weight="600">En attente</text>
+            <rect x="392" y="106" width="64" height="20" rx="6" fill="#E4002B"/><text x="424" y="120" font-size="10" font-weight="600" text-anchor="middle" fill="#FFFFFF">Activer</text>
+            <path d="M24 132 H456" stroke="#EDEDF0"/>
+            <text x="24" y="152" font-size="11" fill="#0B0B0F">Marie L.</text><text x="170" y="152" font-size="11" fill="#0B0B0F">Super admin</text><text x="320" y="152" font-size="11" fill="#15803D" font-weight="600">Actif</text>
+            <rect x="24" y="178" width="210" height="140" rx="10" fill="#F6F6F8" stroke="#D9D9DF"/>
+            <text x="38" y="204" font-size="11" font-weight="700" fill="#0B0B0F">Double authentification</text>
+            <text x="38" y="226" font-size="9" fill="#5B5B66">Code à 6 chiffres</text>
+            <g fill="#fff" stroke="#D9D9DF"><rect x="38" y="236" width="24" height="32" rx="5"/><rect x="68" y="236" width="24" height="32" rx="5"/><rect x="98" y="236" width="24" height="32" rx="5"/><rect x="128" y="236" width="24" height="32" rx="5"/><rect x="158" y="236" width="24" height="32" rx="5"/><rect x="188" y="236" width="24" height="32" rx="5"/></g>
+            <g font-size="14" font-weight="600" text-anchor="middle" fill="#0B0B0F"><text x="50" y="257">4</text><text x="80" y="257">8</text><text x="110" y="257">2</text><text x="140" y="257">1</text><text x="170" y="257">9</text><text x="200" y="257">7</text></g>
+            <text x="38" y="296" font-size="9" fill="#5B5B66">Application d’authentification</text>
+            <rect x="250" y="178" width="206" height="140" rx="10" fill="#0B0B0F"/>
+            <text x="266" y="204" font-size="11" font-weight="700" fill="#FFFFFF">Sauvegarde</text>
+            <text x="266" y="224" font-size="9" fill="#A6A6B3">Historique des exports conservé</text>
+            <rect x="266" y="240" width="174" height="26" rx="7" fill="#E4002B"/><text x="353" y="257" font-size="11" font-weight="600" text-anchor="middle" fill="#FFFFFF">Exporter en SQL</text>
+            <rect x="266" y="276" width="174" height="26" rx="7" fill="none" stroke="#FFFFFF"/><text x="353" y="293" font-size="11" font-weight="600" text-anchor="middle" fill="#FFFFFF">Exporter en CSV</text>
+          </svg>
+          <figcaption>Illustration de l’espace d’administration.</figcaption>
+        </figure>
+        <div>
+          <p class="num">03</p>
+          <h3>Une administration sécurisée</h3>
+          <p>Le super admin active les comptes, attribue les rôles et exporte une sauvegarde complète en SQL ou en CSV.</p>
+          <p class="note">Les connexions sont protégées par un jeton signé et une double authentification par application ou par code.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- Technologies -->
+  <section id="tech">
+    <div class="wrap">
+      <p class="kicker">Technologies</p>
+      <h2>La stack du projet</h2>
+      <div class="tech-grid">
+        <div class="tech-col">
+          <h3>Frontend</h3>
+          <ul>
+            <li>React 19<span>interface, composants</span></li>
+            <li>TypeScript<span>typage strict</span></li>
+            <li>Vite<span>serveur de développement</span></li>
+            <li>Tailwind CSS 4<span>mise en forme</span></li>
+            <li>TanStack Query<span>appels API et cache</span></li>
+          </ul>
+        </div>
+        <div class="tech-col">
+          <h3>Backend</h3>
+          <ul>
+            <li>FastAPI<span>API REST</span></li>
+            <li>SQLAlchemy 2<span>ORM</span></li>
+            <li>Alembic<span>migrations</span></li>
+            <li>Pydantic<span>validation des données</span></li>
+            <li>JWT et bcrypt<span>authentification</span></li>
+          </ul>
+        </div>
+        <div class="tech-col">
+          <h3>Données</h3>
+          <ul>
+            <li>PostgreSQL 16<span>données métier</span></li>
+            <li>MongoDB 7<span>chatbot, codes temporaires</span></li>
+          </ul>
+        </div>
+        <div class="tech-col">
+          <h3>Outils</h3>
+          <ul>
+            <li>Docker ou Podman<span>environnement identique</span></li>
+            <li>Pytest et Vitest<span>tests</span></li>
+            <li>Git et GitHub<span>versions et revues</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Lancer en local -->
+  <section id="local" class="dark">
+    <div class="wrap">
+      <p class="kicker">Lancer en local</p>
+      <h2>Essayez CampOrga sur votre machine</h2>
+      <p class="sub">L’API, les bases de données et l’interface tournent chez vous, pas sur cette page.</p>
+      <div class="run-grid">
+        <div>
+          <ol class="steps">
+            <li><strong>Prérequis.</strong> Installez Git, Node.js et Docker ou Podman.</li>
+            <li><strong>Clonez le projet</strong> depuis GitHub.</li>
+            <li><strong>Démarrez le backend</strong> : PostgreSQL, MongoDB et l’API.</li>
+            <li><strong>Démarrez l’interface</strong>, puis ouvrez-la dans votre navigateur.</li>
+          </ol>
+          <a class="btn" href="http://localhost:5173/">Ouvrir l’application</a>
+        </div>
+        <div class="terminal" role="img" aria-label="Commandes : git clone, camporga.sh start, camporga.sh frontend">
+          <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+<pre><span class="p">$</span> git clone https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio.git
+<span class="p">$</span> cd holbertonschool-portfolio
+<span class="p">$</span> ./camporga.sh start      <span class="c"># API, PostgreSQL, MongoDB</span>
+<span class="p">$</span> ./camporga.sh frontend   <span class="c"># interface sur localhost:5173</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- À propos -->
+  <section id="equipe">
+    <div class="wrap">
+      <p class="kicker">À propos</p>
+      <h2>Pourquoi nous avons construit CampOrga</h2>
+      <div class="about-grid">
+        <div class="story">
+          <!-- À PERSONNALISER : réécrivez cette histoire avec vos propres mots (le sujet doit rester personnel, pas « parce que le projet était obligatoire »). -->
+          <p>Chaque été, des équipes organisent des camps pour faire découvrir le code à des jeunes. Chacune avançait de son côté : un tableur par camp, des inscriptions envoyées par email, aucune vue d’ensemble pour les directeurs.</p>
+          <p>Nous voulions qu’un organisateur puisse publier la page d’un camp en quelques minutes, et qu’un participant s’inscrive en trois étapes. Nous voulions aussi que les données restent entre les mains de l’organisation, avec des sauvegardes simples.</p>
+          <p>CampOrga est notre Portfolio Project à <a href="https://www.holbertonschool.fr/" rel="noopener">Holberton School</a>. Nous l’avons conçu, développé et testé en équipe, de l’idée jusqu’à une version complète.</p>
+        </div>
+        <ol class="timeline" aria-label="Chronologie du projet">
+          <li><strong>Août 2026</strong><span>Cadrage du besoin et définition du MVP</span></li>
+          <li><strong>29 août</strong><span>Début du développement : API et base de données</span></li>
+          <li><strong>9 octobre</strong><span>Authentification et sauvegardes</span></li>
+          <li><strong>21 au 23 octobre</strong><span>Chatbot, inscriptions publiques, double authentification</span></li>
+          <li><strong>3 novembre</strong><span>Version 2.0.0 : fusion du travail de l’équipe, 127 tests</span></li>
+        </ol>
+      </div>
+
+      <div class="team" role="list" aria-label="L’équipe">
+        <!-- À REMPLACER : liens LinkedIn, GitHub et Twitter de chaque membre -->
+        <div class="member" role="listitem">
+          <div><h3>Thélyaan Dufrenoy</h3><p>Développement fullstack et coordination</p></div>
+          <ul>
+            <li><a href="https://www.linkedin.com/in/REMPLACER-thelyaan" rel="noopener">LinkedIn</a></li>
+            <li><a href="https://github.com/REMPLACER-thelyaan" rel="noopener">GitHub</a></li>
+            <li><a href="https://twitter.com/REMPLACER-thelyaan" rel="noopener">Twitter</a></li>
+          </ul>
+        </div>
+        <div class="member" role="listitem">
+          <div><h3>Collins Odi Obi</h3><p>Backend et DevOps</p></div>
+          <ul>
+            <li><a href="https://www.linkedin.com/in/REMPLACER-collins" rel="noopener">LinkedIn</a></li>
+            <li><a href="https://github.com/REMPLACER-collins" rel="noopener">GitHub</a></li>
+            <li><a href="https://twitter.com/REMPLACER-collins" rel="noopener">Twitter</a></li>
+          </ul>
+        </div>
+        <div class="member" role="listitem">
+          <div><h3>Quentin Moussous</h3><p>Frontend</p></div>
+          <ul>
+            <li><a href="https://www.linkedin.com/in/REMPLACER-quentin" rel="noopener">LinkedIn</a></li>
+            <li><a href="https://github.com/REMPLACER-quentin" rel="noopener">GitHub</a></li>
+            <li><a href="https://twitter.com/REMPLACER-quentin" rel="noopener">Twitter</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="repo">
+        <a class="btn line" href="https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio" rel="noopener">Voir le dépôt GitHub</a>
+        <p>Le code, la documentation et les diagrammes sont publics.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>CampOrga, Portfolio Project, Holberton School France, 2026.</span>
+    <a href="https://github.com/BlackGhostMatrixx555/holbertonschool-portfolio" rel="noopener">Code source</a>
+  </div>
+</footer>
+</body>
+</html>
