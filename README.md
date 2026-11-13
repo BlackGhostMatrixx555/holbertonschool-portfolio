@@ -12,6 +12,8 @@
 
 Projet réalisé dans le cadre du **Portfolio Project** — Holberton School France.
 
+🌐 **Site vitrine (landing page)** : [https://blackghostmatrixx555.github.io/holbertonschool-portfolio/](https://blackghostmatrixx555.github.io/holbertonschool-portfolio/)
+
 ---
 
 ## 📋 Sommaire
@@ -170,6 +172,8 @@ holbertonschool-portfolio/
 ## 📚 Documentation
 
 Toute la documentation détaillée (rapports Holberton, schéma de données, présentation, changelog) se trouve dans le dossier [`docs/`](./docs/README.md).
+
+🌐 Le site vitrine du projet (landing page) est en ligne : [https://blackghostmatrixx555.github.io/holbertonschool-portfolio/](https://blackghostmatrixx555.github.io/holbertonschool-portfolio/).
 
 ## 👥 Équipe
 

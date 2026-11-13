@@ -12,6 +12,8 @@
 
 Built as part of the **Portfolio Project** — Holberton School France.
 
+🌐 **Project landing page**: [https://blackghostmatrixx555.github.io/holbertonschool-portfolio/](https://blackghostmatrixx555.github.io/holbertonschool-portfolio/)
+
 ---
 
 ## 📋 Table of contents
@@ -170,6 +172,8 @@ holbertonschool-portfolio/
 ## 📚 Documentation
 
 All detailed documentation (Holberton reports, data schema, presentation, changelog) is in the [`docs/`](./docs/README.en.md) folder.
+
+🌐 The project landing page is live: [https://blackghostmatrixx555.github.io/holbertonschool-portfolio/](https://blackghostmatrixx555.github.io/holbertonschool-portfolio/).
 
 ## 👥 Team
 
